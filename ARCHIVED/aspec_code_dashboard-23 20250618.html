@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASPEC Codelists Management Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo-placeholder {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .subtitle {
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        }
+
+        .section h2 {
+            color: #2d3748;
+            margin-bottom: 20px;
+            font-size: 22px;
+        }
+
+        .simple-upload {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            background: #f8fafc;
+        }
+
+        .file-input {
+            margin: 20px 0;
+        }
+
+        .file-input input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status {
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            height: 200px;
+            overflow-y: auto;
+            margin: 20px 0;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .data-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .summary-card {
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+        }
+
+        .summary-number {
+            font-size: 32px;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .summary-label {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .codelists-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .codelist-card {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .codelist-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .codelist-card.selected {
+            border-color: #667eea;
+            background: #ebf8ff;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .highlight {
+            background: yellow;
+            font-weight: bold;
+            padding: 1px 2px;
+            border-radius: 2px;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            position: relative;
+        }
+
+        .step {
+            flex: 1;
+            text-align: center;
+            position: relative;
+            padding: 10px;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            color: #718096;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .step.active .step-number {
+            background: #667eea;
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: #48bb78;
+            color: white;
+        }
+
+        .step-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 5px;
+        }
+
+        .step-desc {
+            font-size: 12px;
+            color: #718096;
+        }
+
+        .progress-line {
+            position: absolute;
+            top: 30px;
+            left: 50%;
+            right: -50%;
+            height: 2px;
+            background: #e2e8f0;
+            z-index: -1;
+        }
+
+        .step:last-child .progress-line {
+            display: none;
+        }
+
+        .step.completed .progress-line {
+            background: #48bb78;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .validation-status {
+            margin-top: 10px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .validation-success {
+            background: #c6f6d5;
+            color: #22543d;
+            border: 1px solid #9ae6b4;
+        }
+
+        .validation-error {
+            background: #fed7d7;
+            color: #c53030;
+            border: 1px solid #feb2b2;
+        }
+
+        .email-preview {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            color: #000;
+        }
+
+        .content-viewer {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            background: #f8fafc;
+            margin: 20px 0;
+        }
+
+        .content-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .content-table th,
+        .content-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .content-table th {
+            background: #edf2f7;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .content-table tr:hover {
+            background: #f1f5f9;
+        }
+
+        .suggestion-card {
+            transition: all 0.3s ease;
+        }
+
+        .suggestion-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.15);
+        }
+
+        .pulse-highlight {
+            animation: pulseHighlight 2s ease-out;
+        }
+
+        @keyframes pulseHighlight {
+            0% { background: #f0fff4; border-color: #48bb78; }
+            50% { background: #ecfdf5; border-color: #22c55e; }
+            100% { background: transparent; border-color: transparent; }
+        }
+
+        @media (max-width: 768px) {
+            .step-indicator {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .progress-line {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-section">
+                <div class="logo-placeholder">A-SPEC</div>
+                <div>
+                    <h1 class="title">ASPEC Codelists Management Dashboard</h1>
+                    <p class="subtitle">Simple and reliable code management</p>
+                </div>
+            </div>
+            <div class="logo-placeholder">GISSA</div>
+        </div>
+
+        <!-- Step Indicator -->
+        <div class="section">
+            <div class="step-indicator">
+                <div class="step active" id="step1">
+                    <div class="step-number">1</div>
+                    <div class="step-title">Upload File</div>
+                    <div class="step-desc">Load A-SPEC codelists</div>
+                    <div class="progress-line"></div>
+                </div>
+                <div class="step" id="step2">
+                    <div class="step-number">2</div>
+                    <div class="step-title">Select Codelist</div>
+                    <div class="step-desc">Choose target codelist</div>
+                    <div class="progress-line"></div>
+                </div>
+                <div class="step" id="step3">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Create Code</div>
+                    <div class="step-desc">Add new terms</div>
+                    <div class="progress-line"></div>
+                </div>
+                <div class="step" id="step4">
+                    <div class="step-number">4</div>
+                    <div class="step-title">Complete</div>
+                    <div class="step-desc">Download & notify</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Console -->
+        <div class="section">
+            <h2>📟 Status</h2>
+            <div id="status" class="status">
+                <div>🟢 Dashboard ready - Please select an Excel file</div>
+            </div>
+        </div>
+
+        <!-- Simple File Upload -->
+        <div class="section">
+            <h2>📁 Upload A-SPEC Codelists File</h2>
+            <div class="simple-upload">
+                <h3>Select Your Excel File</h3>
+                <p style="margin: 10px 0; color: #666;">Choose your ASPEC CODELISTS Excel file (.xlsx or .xls)</p>
+                
+                <div class="file-input">
+                    <input type="file" id="fileInput" accept=".xlsx,.xls" />
+                </div>
+                
+                <button class="btn" onclick="processSelectedFile()">Process File</button>
+            </div>
+            
+            <div id="fileResults" class="hidden">
+                <h3>File Processing Results</h3>
+                <div id="dataSummary" class="data-summary"></div>
+            </div>
+        </div>
+
+        <!-- Codelist Selection -->
+        <div class="section" id="codelistSection" style="display: none;">
+            <h2>🎯 Select Target Codelist</h2>
+            <input type="text" class="search-input" id="codelistSearch" 
+                   placeholder="🔍 Search codelists (e.g., 'pipe material', 'valve type', etc.)" 
+                   onkeyup="searchCodelists()">
+            
+            <div id="popularCodelists">
+                <h3 style="margin-bottom: 15px; color: #4a5568;">Popular Codelists (Most Entries)</h3>
+                <div id="codelistGrid" class="codelists-grid"></div>
+            </div>
+            
+            <div id="searchResults" class="hidden">
+                <h3 style="margin-bottom: 15px; color: #4a5568;">Search Results</h3>
+                <div id="resultsGrid" class="codelists-grid"></div>
+            </div>
+            
+            <div id="selectedInfo" class="hidden" style="margin-top: 20px; padding: 20px; background: #f0f8ff; border-radius: 8px;">
+                <h3>Selected Codelist</h3>
+                <div id="selectedDetails"></div>
+                <button class="btn" onclick="proceedToCodeCreation()">➡️ Continue to Code Creation</button>
+                
+                <!-- Inline Content Viewer -->
+                <div id="inlineContentViewer" style="margin-top: 20px;">
+                    <h4>Existing Codes in this Codelist:</h4>
+                    <div style="margin: 10px 0;">
+                        <input type="text" class="search-input" id="contentSearch" 
+                               placeholder="🔍 Search within this codelist..."
+                               onkeyup="filterCodelistContents()" style="margin-bottom: 10px;">
+                    </div>
+                    <div class="content-viewer">
+                        <table class="content-table" id="contentTable">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Description</th>
+                                    <th>Comments</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contentTableBody">
+                                <!-- Table content will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="contentPagination" style="text-align: center; margin-top: 15px;">
+                        <!-- Pagination will be added here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Code Creation Section -->
+        <div class="section" id="codeCreationSection" style="display: none;">
+            <h2>➕ Create New Code</h2>
+            
+            <div class="form-group">
+                <label class="form-label">What are you looking for?</label>
+                <input type="text" class="form-input" id="codeSearch" 
+                       placeholder="Describe what you need (e.g., 'steel pipe', 'concrete slab', 'valve type')" 
+                       onkeyup="searchAndSuggest()">
+                <small style="color: #666;">Type your requirements and we'll search existing codes and suggest new ones if needed</small>
+            </div>
+
+            <div id="searchProgress" class="hidden" style="background: #f0f8ff; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <div style="color: #667eea;">🔍 Searching existing codes...</div>
+            </div>
+
+            <div id="existingMatches" class="hidden" style="margin: 20px 0;">
+                <h3 style="color: #22543d; margin-bottom: 15px;">✅ Found Existing Matches</h3>
+                <div style="background: #f0fff4; padding: 15px; border-radius: 8px; border-left: 4px solid #48bb78;">
+                    <p style="margin-bottom: 10px; color: #22543d;">Great! We found existing codes that match your search:</p>
+                    <div id="existingMatchesGrid" class="codelists-grid">
+                        <!-- Existing matches will be shown here -->
+                    </div>
+                    <p style="margin-top: 15px; color: #22543d;"><strong>💡 Tip:</strong> You can use one of these existing codes, or continue below to create a new one.</p>
+                </div>
+            </div>
+
+            <div id="noMatches" class="hidden" style="margin: 20px 0;">
+                <h3 style="color: #b45309; margin-bottom: 15px;">🔍 No Existing Matches Found</h3>
+                <div style="background: #fefcbf; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <p style="margin-bottom: 10px; color: #b45309;">No existing codes match your search. Let's create a new one!</p>
+                </div>
+            </div>
+
+            <div id="suggestionSection" class="hidden" style="margin: 20px 0;">
+                <h3 style="color: #667eea; margin-bottom: 15px;">💡 Suggested New Codes</h3>
+                <div style="background: #f0f8ff; padding: 15px; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <p style="margin-bottom: 15px; color: #4338ca;">Based on your search, here are some suggested new codes to create:</p>
+                    <div id="suggestedCodesGrid" class="codelists-grid">
+                        <!-- Suggested codes will be shown here -->
+                    </div>
+                    <p style="margin-top: 15px; color: #4338ca;"><strong>Click any suggestion to use it, or create your own below.</strong></p>
+                </div>
+            </div>
+
+            <div id="customCodeSection" class="hidden" style="margin-top: 30px;">
+                <h3 style="margin-bottom: 20px; color: #2d3748;">🛠️ Create Custom Code</h3>
+                
+                <div class="form-group">
+                    <label class="form-label">Code Description *</label>
+                    <input type="text" class="form-input" id="newCodeDescription" 
+                           placeholder="Enter a clear description for the new code"
+                           onkeyup="validateNewCode()">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Your Name *</label>
+                    <input type="text" class="form-input" id="userName" 
+                           placeholder="Enter your name"
+                           onkeyup="validateNewCode()">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Your Email *</label>
+                    <input type="email" class="form-input" id="userEmail" 
+                           placeholder="Enter your email address"
+                           onkeyup="validateNewCode()">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Additional Comments (Optional)</label>
+                    <textarea class="form-input" id="codeComments" rows="3" 
+                              placeholder="Any additional context or notes"></textarea>
+                </div>
+
+                <div id="codeValidation" class="hidden">
+                    <!-- Validation messages will appear here -->
+                </div>
+
+                <button class="btn" id="createCodeBtn" onclick="createNewCode()" disabled>
+                    ➕ Create & Add New Code
+                </button>
+            </div>
+        </div>
+
+        <!-- Completion Section -->
+        <div class="section" id="completionSection" style="display: none;">
+            <h2>🎉 Process Complete</h2>
+            
+            <div style="background: #c6f6d5; color: #22543d; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                ✅ New code added successfully to codelist
+            </div>
+
+            <div id="completionSummary">
+                <!-- Completion details will be shown here -->
+            </div>
+
+            <div style="margin-top: 30px; display: flex; gap: 15px; flex-wrap: wrap;">
+                <button class="btn" onclick="downloadUpdatedFile()">
+                    📁 Download Updated Excel File
+                </button>
+                <button class="btn" id="emailBtn" onclick="sendNotificationEmail()">
+                    📤 Send Email Notification
+                </button>
+                <button class="btn" onclick="resetWorkflow()">
+                    🔄 Start New Process
+                </button>
+            </div>
+
+            <div id="emailPreview" class="email-preview hidden">
+                <!-- Email preview will be shown here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let workbook = null;
+        let codelistsData = [];
+        let selectedCodelist = null;
+        let currentStep = 1;
+        let filteredContent = [];
+        let currentPage = 1;
+        const itemsPerPage = 10;
+        let searchTimeout = null;
+
+        // Simple status logging
+        function log(message, type = 'info') {
+            const status = document.getElementById('status');
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'error' ? '🔴' : type === 'success' ? '🟢' : type === 'warning' ? '🟡' : '🔵';
+            const div = document.createElement('div');
+            div.innerHTML = `${icon} [${timestamp}] ${message}`;
+            status.appendChild(div);
+            status.scrollTop = status.scrollHeight;
+        }
+
+        // Update step indicator
+        function updateStep(step) {
+            currentStep = step;
+            
+            for (let i = 1; i <= 4; i++) {
+                const stepEl = document.getElementById(`step${i}`);
+                stepEl.classList.remove('active', 'completed');
+                
+                if (i < step) {
+                    stepEl.classList.add('completed');
+                } else if (i === step) {
+                    stepEl.classList.add('active');
+                }
+            }
+        }
+
+        // Process the selected file
+        function processSelectedFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                log('❌ No file selected', 'error');
+                alert('Please select a file first.');
+                return;
+            }
+
+            log(`📁 Processing file: ${file.name}`);
+            
+            if (!file.name.match(/\.(xlsx|xls)$/i)) {
+                log('❌ Invalid file type', 'error');
+                alert('Please select an Excel file (.xlsx or .xls)');
+                return;
+            }
+
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    log('📖 Reading file data...');
+                    const data = new Uint8Array(e.target.result);
+                    workbook = XLSX.read(data, { type: 'array' });
+                    log('✅ File read successfully', 'success');
+                    processExcelData();
+                } catch (error) {
+                    log(`❌ Error reading file: ${error.message}`, 'error');
+                    alert('Error reading file: ' + error.message);
+                }
+            };
+            
+            reader.onerror = function() {
+                log('❌ File reader error', 'error');
+                alert('Error reading file');
+            };
+            
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Process Excel data
+        function processExcelData() {
+            try {
+                log(`📊 Available sheets: ${workbook.SheetNames.join(', ')}`);
+                
+                let targetSheet = 'CODELIST_MASTER';
+                if (!workbook.Sheets[targetSheet]) {
+                    targetSheet = workbook.SheetNames[0];
+                    log(`⚠️ Using sheet: ${targetSheet}`, 'warning');
+                }
+
+                const worksheet = workbook.Sheets[targetSheet];
+                const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                if (data.length < 2) {
+                    log('❌ File appears empty', 'error');
+                    alert('The Excel file appears to be empty');
+                    return;
+                }
+
+                const headers = data[0];
+                log(`📋 Headers: ${headers.join(', ')}`);
+
+                // Find the correct column indices
+                const codelistColumnIndex = headers.findIndex(h => 
+                    h && h.toString().toLowerCase().includes('codelist')
+                );
+                const codeColumnIndex = headers.findIndex(h => 
+                    h && h.toString().toLowerCase() === 'code'
+                );
+                const descriptionColumnIndex = headers.findIndex(h => 
+                    h && h.toString().toLowerCase().includes('description')
+                );
+                const commentsColumnIndex = headers.findIndex(h => 
+                    h && (h.toString().toLowerCase().includes('comment') || h.toString().toLowerCase().includes('note'))
+                );
+
+                log(`📍 Column mapping: Codelist=${codelistColumnIndex}, Code=${codeColumnIndex}, Description=${descriptionColumnIndex}, Comments=${commentsColumnIndex}`);
+
+                if (codelistColumnIndex === -1) {
+                    log('❌ Could not find Codelist column', 'error');
+                    alert('Could not find "Codelist" column in the Excel file. Please check the file format.');
+                    return;
+                }
+
+                if (codeColumnIndex === -1) {
+                    log('❌ Could not find Code column', 'error');
+                    alert('Could not find "Code" column in the Excel file. Please check the file format.');
+                    return;
+                }
+
+                const rows = data.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== ''));
+
+                // Group by actual codelist values
+                const codelistsMap = new Map();
+                rows.forEach((row, index) => {
+                    const codelistName = row[codelistColumnIndex];
+                    const codeValue = row[codeColumnIndex];
+                    const description = row[descriptionColumnIndex] || '';
+                    const comments = row[commentsColumnIndex] || '';
+                    
+                    // Skip if no codelist name or code value
+                    if (!codelistName || (codeValue === null || codeValue === undefined) || !description) {
+                        return;
+                    }
+                    
+                    // Convert code value to string for consistency
+                    const codeStr = codeValue.toString();
+                    
+                    // Debug log for first few rows
+                    if (index < 5) {
+                        log(`📝 Row ${index + 2}: Codelist="${codelistName}", Code="${codeStr}", Description="${description}"`);
+                    }
+                    
+                    if (!codelistsMap.has(codelistName)) {
+                        codelistsMap.set(codelistName, []);
+                    }
+                    codelistsMap.get(codelistName).push({
+                        code: codeStr,
+                        description: description.toString(),
+                        comments: comments.toString()
+                    });
+                });
+
+                codelistsData = Array.from(codelistsMap.entries()).map(([name, codes]) => ({
+                    name: name,
+                    codes: codes,
+                    count: codes.length
+                }));
+
+                // Filter out codelists with very few entries (likely not real codelists)
+                codelistsData = codelistsData.filter(cl => cl.count > 1);
+
+                log(`✅ Processed ${codelistsData.length} codelists`, 'success');
+                showResults();
+                
+            } catch (error) {
+                log(`❌ Processing error: ${error.message}`, 'error');
+                alert('Error processing data: ' + error.message);
+            }
+        }
+
+        // Show processing results
+        function showResults() {
+            const totalCodelists = codelistsData.length;
+            const totalEntries = codelistsData.reduce((sum, cl) => sum + cl.count, 0);
+
+            const summaryHtml = `
+                <div class="summary-card">
+                    <div class="summary-number">${totalCodelists}</div>
+                    <div class="summary-label">Codelists</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number">${totalEntries}</div>
+                    <div class="summary-label">Total Entries</div>
+                </div>
+                <div class="summary-card">
+                    <div class="summary-number">${new Date().toLocaleDateString()}</div>
+                    <div class="summary-label">Processed</div>
+                </div>
+            `;
+
+            document.getElementById('dataSummary').innerHTML = summaryHtml;
+            document.getElementById('fileResults').classList.remove('hidden');
+            document.getElementById('codelistSection').style.display = 'block';
+            
+            updateStep(2);
+            displayCodelists();
+        }
+
+        // Display codelists (show popular by default)
+        function displayCodelists() {
+            showPopularCodelists();
+        }
+
+        // Show popular codelists (sorted by entry count)
+        function showPopularCodelists() {
+            // Sort by count and show all, but highlight top ones
+            const sortedCodelists = [...codelistsData].sort((a, b) => b.count - a.count);
+            
+            const html = sortedCodelists.map(codelist => `
+                <div class="codelist-card" onclick="selectCodelist('${codelist.name}')">
+                    <div style="font-weight: 600; margin-bottom: 5px;">${codelist.name}</div>
+                    <div style="color: #666; font-size: 14px;">${codelist.count} entries</div>
+                </div>
+            `).join('');
+            
+            document.getElementById('codelistGrid').innerHTML = html;
+            
+            // Update header to show total count
+            const popularHeader = document.querySelector('#popularCodelists h3');
+            if (popularHeader) {
+                popularHeader.textContent = `All Codelists (${codelistsData.length} total) - Sorted by Entry Count`;
+            }
+            
+            // Show popular section, hide search results
+            document.getElementById('popularCodelists').style.display = 'block';
+            document.getElementById('searchResults').classList.add('hidden');
+        }
+
+        // Search codelists with real-time filtering
+        function searchCodelists() {
+            const query = document.getElementById('codelistSearch').value.toLowerCase();
+            
+            if (query.length < 3) {
+                // Show popular codelists when search is too short
+                showPopularCodelists();
+                return;
+            }
+
+            log(`🔍 Searching for: "${query}"`);
+
+            // Comprehensive search across all fields
+            const filtered = codelistsData.filter(codelist => {
+                // Search codelist name
+                const nameMatch = codelist.name.toLowerCase().includes(query);
+                
+                // Search within codes, descriptions, and comments
+                const codeMatch = codelist.codes.some(code => {
+                    const codeValue = (code.code || '').toString().toLowerCase();
+                    const description = (code.description || '').toString().toLowerCase();
+                    const comments = (code.comments || '').toString().toLowerCase();
+                    
+                    return description.includes(query) ||
+                           codeValue.includes(query) ||
+                           comments.includes(query);
+                });
+                
+                return nameMatch || codeMatch;
+            });
+
+            // Sort results by relevance (name matches first, then by entry count)
+            const sorted = filtered.sort((a, b) => {
+                const aNameMatch = a.name.toLowerCase().includes(query);
+                const bNameMatch = b.name.toLowerCase().includes(query);
+                
+                if (aNameMatch && !bNameMatch) return -1;
+                if (!aNameMatch && bNameMatch) return 1;
+                
+                // If both or neither match by name, sort by entry count
+                return b.count - a.count;
+            });
+
+            const html = sorted.map(codelist => {
+                const highlightedName = highlightText(codelist.name, query);
+                return `
+                    <div class="codelist-card" onclick="selectCodelist('${codelist.name}')">
+                        <div style="font-weight: 600; margin-bottom: 5px;">${highlightedName}</div>
+                        <div style="color: #666; font-size: 14px;">${codelist.count} entries</div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('resultsGrid').innerHTML = html;
+            
+            // Update search results header
+            const searchHeader = document.querySelector('#searchResults h3');
+            if (searchHeader) {
+                searchHeader.textContent = `Search Results (${filtered.length} found)`;
+            }
+            
+            // Show search results, hide popular
+            document.getElementById('popularCodelists').style.display = 'none';
+            document.getElementById('searchResults').classList.remove('hidden');
+            
+            log(`📊 Found ${filtered.length} matching codelists`);
+        }
+
+        // Highlight search text
+        function highlightText(text, query) {
+            const regex = new RegExp(`(${query})`, 'gi');
+            return text.replace(regex, '<mark>$1</mark>');
+        }
+
+        // Highlight search text
+        function highlightText(text, query) {
+            if (!query || !text) return text || '';
+            const textStr = text.toString();
+            const regex = new RegExp(`(${query})`, 'gi');
+            return textStr.replace(regex, '<span class="highlight">$1</span>');
+        }
+
+        // Select a codelist
+        function selectCodelist(name) {
+            selectedCodelist = codelistsData.find(cl => cl.name === name);
+            
+            if (selectedCodelist) {
+                log(`✅ Selected: ${selectedCodelist.name}`, 'success');
+                
+                // Remove selection from all cards in both grids
+                document.querySelectorAll('.codelist-card').forEach(card => {
+                    card.classList.remove('selected');
+                });
+                
+                // Add selection to clicked card
+                event.target.closest('.codelist-card').classList.add('selected');
+
+                const detailsHtml = `
+                    <strong>${selectedCodelist.name}</strong><br>
+                    ${selectedCodelist.count} existing codes
+                `;
+                
+                document.getElementById('selectedDetails').innerHTML = detailsHtml;
+                document.getElementById('selectedInfo').classList.remove('hidden');
+                
+                // Automatically display the codes
+                displayCodelistContents();
+                
+                // Scroll to selected info
+                document.getElementById('selectedInfo').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // Display codelist contents automatically
+        function displayCodelistContents() {
+            if (!selectedCodelist) return;
+            
+            log(`👁️ Displaying codes for: ${selectedCodelist.name}`);
+            
+            // Reset search and pagination
+            document.getElementById('contentSearch').value = '';
+            filteredContent = [...selectedCodelist.codes];
+            currentPage = 1;
+            
+            updateContentDisplay();
+        }
+
+        // Update the content display with current page
+        function updateContentDisplay() {
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = filteredContent.slice(startIndex, endIndex);
+
+            const html = pageData.map(code => `
+                <tr>
+                    <td>${code.code || 'N/A'}</td>
+                    <td>${code.description || 'N/A'}</td>
+                    <td>${code.comments || ''}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('contentTableBody').innerHTML = html;
+            updateContentPagination();
+        }
+
+        // Update pagination controls
+        function updateContentPagination() {
+            const totalPages = Math.ceil(filteredContent.length / itemsPerPage);
+            let paginationHtml = '';
+
+            if (totalPages > 1) {
+                // Previous button
+                if (currentPage > 1) {
+                    paginationHtml += `<button class="btn" onclick="changeContentPage(${currentPage - 1})" style="margin: 0 5px; padding: 8px 12px;">Previous</button>`;
+                }
+
+                // Page numbers
+                const startPage = Math.max(1, currentPage - 2);
+                const endPage = Math.min(totalPages, currentPage + 2);
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    const activeStyle = i === currentPage ? 'background: #48bb78;' : '';
+                    paginationHtml += `<button class="btn" onclick="changeContentPage(${i})" style="margin: 0 2px; padding: 8px 12px; ${activeStyle}">${i}</button>`;
+                }
+
+                // Next button
+                if (currentPage < totalPages) {
+                    paginationHtml += `<button class="btn" onclick="changeContentPage(${currentPage + 1})" style="margin: 0 5px; padding: 8px 12px;">Next</button>`;
+                }
+
+                paginationHtml += `<span style="margin-left: 15px; color: #666;">Page ${currentPage} of ${totalPages} (${filteredContent.length} codes)</span>`;
+            } else {
+                paginationHtml = `<span style="color: #666;">${filteredContent.length} codes total</span>`;
+            }
+
+            document.getElementById('contentPagination').innerHTML = paginationHtml;
+        }
+
+        // Change page in content viewer
+        function changeContentPage(page) {
+            currentPage = page;
+            updateContentDisplay();
+        }
+
+        // Filter codelist contents based on search
+        function filterCodelistContents() {
+            if (!selectedCodelist) return;
+            
+            const query = document.getElementById('contentSearch').value.toLowerCase();
+            
+            if (!query) {
+                filteredContent = [...selectedCodelist.codes];
+            } else {
+                filteredContent = selectedCodelist.codes.filter(code => {
+                    const codeValue = (code.code || '').toString().toLowerCase();
+                    const description = (code.description || '').toString().toLowerCase();
+                    const comments = (code.comments || '').toString().toLowerCase();
+                    
+                    return codeValue.includes(query) ||
+                           description.includes(query) ||
+                           comments.includes(query);
+                });
+                log(`🔍 Filtered to ${filteredContent.length} codes containing "${query}"`);
+            }
+            
+            currentPage = 1;
+            updateContentDisplay();
+        }
+
+        // Proceed to code creation
+        function proceedToCodeCreation() {
+            if (!selectedCodelist) {
+                alert('Please select a codelist first');
+                return;
+            }
+            
+            log(`🚀 Proceeding to code creation for: ${selectedCodelist.name}`);
+            updateStep(3);
+            document.getElementById('codeCreationSection').style.display = 'block';
+            document.getElementById('codeCreationSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Main search and suggest function
+        function searchAndSuggest() {
+            const query = document.getElementById('codeSearch').value.trim();
+            
+            // Clear existing timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            // Hide all result sections initially
+            hideAllSearchResults();
+            
+            if (query.length < 3) {
+                return;
+            }
+            
+            // Show progress indicator
+            document.getElementById('searchProgress').classList.remove('hidden');
+            
+            // Debounce search to avoid too many calls
+            searchTimeout = setTimeout(() => {
+                performSearchAndSuggest(query);
+            }, 500);
+        }
+
+        // Hide all search result sections
+        function hideAllSearchResults() {
+            document.getElementById('searchProgress').classList.add('hidden');
+            document.getElementById('existingMatches').classList.add('hidden');
+            document.getElementById('noMatches').classList.add('hidden');
+            document.getElementById('suggestionSection').classList.add('hidden');
+            document.getElementById('customCodeSection').classList.add('hidden');
+        }
+
+        // Perform the actual search and generate suggestions
+        function performSearchAndSuggest(query) {
+            if (!selectedCodelist) return;
+            
+            log(`🔍 Searching for: "${query}" in ${selectedCodelist.name}`);
+            
+            const queryLower = query.toLowerCase();
+            
+            // Search existing codes in the selected codelist
+            const exactMatches = selectedCodelist.codes.filter(code => {
+                const codeValue = (code.code || '').toString().toLowerCase();
+                const description = (code.description || '').toString().toLowerCase();
+                const comments = (code.comments || '').toString().toLowerCase();
+                
+                return description.includes(queryLower) ||
+                       codeValue.includes(queryLower) ||
+                       comments.includes(queryLower);
+            });
+
+            // Hide progress
+            document.getElementById('searchProgress').classList.add('hidden');
+
+            if (exactMatches.length > 0) {
+                // Show existing matches
+                showExistingMatches(exactMatches, query);
+            } else {
+                // No matches found, show suggestions
+                showNoMatchesAndSuggestions(query);
+            }
+        }
+
+        // Show existing matches found
+        function showExistingMatches(matches, query) {
+            log(`✅ Found ${matches.length} existing matches`);
+            
+            const html = matches.slice(0, 6).map(code => `
+                <div class="codelist-card" style="border: 2px solid #48bb78; background: #f0fff4;">
+                    <div style="font-weight: 600; margin-bottom: 5px; color: #22543d;">
+                        ${highlightText((code.description || '').toString(), query)}
+                    </div>
+                    <div style="color: #166534; font-size: 14px; margin-bottom: 5px;">
+                        <strong>Code:</strong> ${code.code || 'N/A'}
+                    </div>
+                    ${code.comments ? `<div style="font-size: 12px; color: #166534;">${code.comments}</div>` : ''}
+                </div>
+            `).join('');
+
+            document.getElementById('existingMatchesGrid').innerHTML = html;
+            document.getElementById('existingMatches').classList.remove('hidden');
+            
+            // Still show custom section in case they want to create something different
+            document.getElementById('customCodeSection').classList.remove('hidden');
+        }
+
+        // Show no matches and generate suggestions
+        function showNoMatchesAndSuggestions(query) {
+            log(`❌ No existing matches found for "${query}"`);
+            
+            document.getElementById('noMatches').classList.remove('hidden');
+            
+            // Generate intelligent suggestions based on the query
+            const suggestions = generateCodeSuggestions(query);
+            
+            if (suggestions.length > 0) {
+                showSuggestions(suggestions);
+            }
+            
+            // Always show custom section
+            document.getElementById('customCodeSection').classList.remove('hidden');
+        }
+
+        // Generate intelligent code suggestions
+        function generateCodeSuggestions(query) {
+            const suggestions = [];
+            const queryLower = query.toLowerCase();
+            
+            // Material-based suggestions
+            if (queryLower.includes('steel') || queryLower.includes('metal')) {
+                suggestions.push({
+                    description: `Steel ${query.replace(/steel|metal/gi, '').trim()}`,
+                    reasoning: 'Based on steel/metal keyword'
+                });
+                suggestions.push({
+                    description: `Galvanized ${query}`,
+                    reasoning: 'Common steel treatment'
+                });
+            }
+            
+            if (queryLower.includes('concrete') || queryLower.includes('cement')) {
+                suggestions.push({
+                    description: `Reinforced ${query}`,
+                    reasoning: 'Common concrete type'
+                });
+                suggestions.push({
+                    description: `Precast ${query}`,
+                    reasoning: 'Common concrete application'
+                });
+            }
+            
+            if (queryLower.includes('pipe') || queryLower.includes('tube')) {
+                suggestions.push({
+                    description: `${query} - Schedule 40`,
+                    reasoning: 'Standard pipe schedule'
+                });
+                suggestions.push({
+                    description: `${query} - Schedule 80`,
+                    reasoning: 'Heavy-duty pipe schedule'
+                });
+            }
+            
+            if (queryLower.includes('valve')) {
+                suggestions.push({
+                    description: `${query} - Ball Valve`,
+                    reasoning: 'Common valve type'
+                });
+                suggestions.push({
+                    description: `${query} - Gate Valve`,
+                    reasoning: 'Common valve type'
+                });
+            }
+            
+            // Size-based suggestions
+            if (queryLower.match(/\d+/)) {
+                const baseDesc = query.replace(/\d+\s*(mm|cm|m|inch|in|ft)?\s*/gi, '').trim();
+                if (baseDesc) {
+                    suggestions.push({
+                        description: `${baseDesc} - Standard Size`,
+                        reasoning: 'Standard sizing option'
+                    });
+                    suggestions.push({
+                        description: `${baseDesc} - Custom Size`,
+                        reasoning: 'Custom sizing option'
+                    });
+                }
+            }
+            
+            // Generic improvements
+            if (suggestions.length === 0) {
+                suggestions.push({
+                    description: `Standard ${query}`,
+                    reasoning: 'Standard specification'
+                });
+                suggestions.push({
+                    description: `Premium ${query}`,
+                    reasoning: 'Premium grade option'
+                });
+                suggestions.push({
+                    description: `${query} - Type A`,
+                    reasoning: 'Classification type A'
+                });
+            }
+            
+            // Limit to 4 suggestions max
+            return suggestions.slice(0, 4);
+        }
+
+        // Show generated suggestions
+        function showSuggestions(suggestions) {
+            log(`💡 Generated ${suggestions.length} suggestions`);
+            
+            const html = suggestions.map((suggestion, index) => `
+                <div class="codelist-card" onclick="selectSuggestion('${suggestion.description}')" 
+                     style="border: 2px solid #667eea; background: #f0f8ff; cursor: pointer;">
+                    <div style="font-weight: 600; margin-bottom: 5px; color: #4338ca;">
+                        ${suggestion.description}
+                    </div>
+                    <div style="color: #6366f1; font-size: 12px;">
+                        💡 ${suggestion.reasoning}
+                    </div>
+                    <div style="color: #4338ca; font-size: 12px; margin-top: 5px;">
+                        <strong>Click to use this suggestion</strong>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('suggestedCodesGrid').innerHTML = html;
+            document.getElementById('suggestionSection').classList.remove('hidden');
+        }
+
+        // Select a suggested code
+        function selectSuggestion(description) {
+            log(`✅ Selected suggestion: "${description}"`);
+            
+            // Populate the custom form with the suggestion
+            document.getElementById('newCodeDescription').value = description;
+            
+            // Scroll to custom section
+            document.getElementById('customCodeSection').scrollIntoView({ behavior: 'smooth' });
+            
+            // Trigger validation
+            validateNewCode();
+            
+            // Highlight the form briefly
+            const customSection = document.getElementById('customCodeSection');
+            customSection.style.background = '#f0fff4';
+            customSection.style.border = '2px solid #48bb78';
+            customSection.style.borderRadius = '8px';
+            
+            setTimeout(() => {
+                customSection.style.background = '';
+                customSection.style.border = '';
+            }, 2000);
+        }
+
+        // Validate new code form
+        function validateNewCode() {
+            const description = document.getElementById('newCodeDescription').value.trim();
+            const userName = document.getElementById('userName').value.trim();
+            const userEmail = document.getElementById('userEmail').value.trim();
+            const createBtn = document.getElementById('createCodeBtn');
+            const validationDiv = document.getElementById('codeValidation');
+
+            let isValid = true;
+            let messages = [];
+
+            // Validate description
+            if (description.length < 3) {
+                isValid = false;
+                messages.push('❌ Description must be at least 3 characters long');
+            } else {
+                messages.push('✅ Description looks good');
+            }
+
+            // Validate name
+            if (userName.length < 2) {
+                isValid = false;
+                messages.push('❌ Name must be at least 2 characters long');
+            } else {
+                messages.push('✅ Name provided');
+            }
+
+            // Validate email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(userEmail)) {
+                isValid = false;
+                messages.push('❌ Please enter a valid email address');
+            } else {
+                messages.push('✅ Email format valid');
+            }
+
+            // Show validation status
+            if (messages.length > 0) {
+                const statusClass = isValid ? 'validation-success' : 'validation-error';
+                validationDiv.innerHTML = `
+                    <div class="${statusClass}">
+                        ${messages.join('<br>')}
+                    </div>
+                `;
+                validationDiv.classList.remove('hidden');
+            }
+
+            createBtn.disabled = !isValid;
+        }
+
+        // Create new code
+        function createNewCode() {
+            if (!selectedCodelist) {
+                alert('No codelist selected');
+                return;
+            }
+
+            const description = document.getElementById('newCodeDescription').value.trim();
+            const userName = document.getElementById('userName').value.trim();
+            const userEmail = document.getElementById('userEmail').value.trim();
+            const comments = document.getElementById('codeComments').value.trim();
+
+            // Generate new code (simple incremental)
+            const existingCodes = selectedCodelist.codes.map(c => {
+                const codeValue = (c.code || '').toString();
+                const numericPart = parseInt(codeValue.replace(/[^0-9]/g, '')) || 0;
+                return numericPart;
+            });
+            const maxCode = Math.max(...existingCodes, 0);
+            const newCodeValue = (maxCode + 1).toString().padStart(3, '0');
+
+            // Create new code object
+            const newCodeObj = {
+                code: newCodeValue,
+                description: description,
+                comments: comments ? `${comments} (Added by ${userName} on ${new Date().toLocaleDateString()})` : `Added by ${userName} on ${new Date().toLocaleDateString()}`
+            };
+
+            // Add to codelist
+            selectedCodelist.codes.push(newCodeObj);
+            selectedCodelist.count = selectedCodelist.codes.length;
+
+            // Update workbook
+            updateWorkbook(newCodeObj, userName, userEmail);
+
+            log(`✅ Created new code: ${newCodeValue} - ${description}`, 'success');
+
+            // Show completion
+            showCompletion(newCodeObj, userName, userEmail);
+            
+            updateStep(4);
+            document.getElementById('completionSection').style.display = 'block';
+            document.getElementById('completionSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Update workbook with new code
+        function updateWorkbook(newCode, userName, userEmail) {
+            // Find the CODELIST_MASTER sheet or first sheet
+            let targetSheet = 'CODELIST_MASTER';
+            if (!workbook.Sheets[targetSheet]) {
+                targetSheet = workbook.SheetNames[0];
+            }
+
+            const worksheet = workbook.Sheets[targetSheet];
+            const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            const headers = data[0];
+
+            // Find the correct column indices (same logic as processExcelData)
+            const codelistColumnIndex = headers.findIndex(h => 
+                h && h.toString().toLowerCase().includes('codelist')
+            );
+            const codeColumnIndex = headers.findIndex(h => 
+                h && h.toString().toLowerCase() === 'code'
+            );
+            const descriptionColumnIndex = headers.findIndex(h => 
+                h && h.toString().toLowerCase().includes('description')
+            );
+            const commentsColumnIndex = headers.findIndex(h => 
+                h && (h.toString().toLowerCase().includes('comment') || h.toString().toLowerCase().includes('note'))
+            );
+
+            // Create new row with data in correct columns
+            const newRow = new Array(headers.length).fill('');
+            if (codelistColumnIndex !== -1) newRow[codelistColumnIndex] = selectedCodelist.name;
+            if (codeColumnIndex !== -1) newRow[codeColumnIndex] = newCode.code;
+            if (descriptionColumnIndex !== -1) newRow[descriptionColumnIndex] = newCode.description;
+            if (commentsColumnIndex !== -1) newRow[commentsColumnIndex] = newCode.comments;
+
+            data.push(newRow);
+
+            // Update worksheet
+            const newWorksheet = XLSX.utils.aoa_to_sheet(data);
+            workbook.Sheets[targetSheet] = newWorksheet;
+
+            log(`📝 Added new row to Excel: ${selectedCodelist.name} | ${newCode.code} | ${newCode.description}`);
+        }
+
+        // Show completion details
+        function showCompletion(newCode, userName, userEmail) {
+            const summaryHtml = `
+                <div style="background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 8px; padding: 20px;">
+                    <h3 style="color: #22543d; margin-bottom: 15px;">New Code Added</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <strong>Codelist:</strong> ${selectedCodelist.name}<br>
+                            <strong>New Code:</strong> ${newCode.code}<br>
+                            <strong>Description:</strong> ${newCode.description}
+                        </div>
+                        <div>
+                            <strong>Added by:</strong> ${userName}<br>
+                            <strong>Email:</strong> ${userEmail}<br>
+                            <strong>Date:</strong> ${new Date().toLocaleDateString()}
+                        </div>
+                    </div>
+                    ${newCode.comments ? `<div style="margin-top: 10px;"><strong>Comments:</strong> ${newCode.comments}</div>` : ''}
+                </div>
+            `;
+
+            document.getElementById('completionSummary').innerHTML = summaryHtml;
+
+            // Prepare email preview
+            const emailHtml = `
+                <div style="font-family: Arial, sans-serif; color: #000;">
+                    <h2 style="color: #000;">New Code Added to ASPEC Codelist</h2>
+                    <p style="color: #000;"><strong>Codelist:</strong> ${selectedCodelist.name}</p>
+                    <p style="color: #000;"><strong>New Code:</strong> ${newCode.code}</p>
+                    <p style="color: #000;"><strong>Description:</strong> ${newCode.description}</p>
+                    <p style="color: #000;"><strong>Added by:</strong> ${userName} (${userEmail})</p>
+                    <p style="color: #000;"><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+                    ${newCode.comments ? `<p style="color: #000;"><strong>Comments:</strong> ${newCode.comments}</p>` : ''}
+                    <hr style="margin: 20px 0;">
+                    <p style="color: #000; font-size: 12px;">This notification was generated automatically by the ASPEC Codelists Management Dashboard.</p>
+                </div>
+            `;
+
+            document.getElementById('emailPreview').innerHTML = emailHtml;
+        }
+
+        // Download updated Excel file
+        function downloadUpdatedFile() {
+            if (!workbook) {
+                alert('No file to download');
+                return;
+            }
+
+            const fileName = `A-SPEC_CODELISTS_Updated_${new Date().toISOString().split('T')[0]}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+            log(`📁 Downloaded: ${fileName}`, 'success');
+        }
+
+        // Send email notification (simulated)
+        function sendNotificationEmail() {
+            const emailBtn = document.getElementById('emailBtn');
+            
+            emailBtn.textContent = '📤 Sending...';
+            emailBtn.disabled = true;
+
+            setTimeout(() => {
+                emailBtn.textContent = '✅ Email Sent (Simulated)';
+                emailBtn.style.background = '#48bb78';
+                
+                document.getElementById('emailPreview').classList.remove('hidden');
+                
+                log('📧 Email notification sent (simulated)', 'success');
+                
+            }, 1500);
+        }
+
+        // Reset workflow
+        function resetWorkflow() {
+            // Reset all data
+            codelistsData = [];
+            selectedCodelist = null;
+            currentStep = 1;
+            workbook = null;
+
+            // Reset UI
+            document.getElementById('fileResults').classList.add('hidden');
+            document.getElementById('codelistSection').style.display = 'none';
+            document.getElementById('codeCreationSection').style.display = 'none';
+            document.getElementById('completionSection').style.display = 'none';
+            
+            // Reset search display
+            document.getElementById('popularCodelists').style.display = 'block';
+            document.getElementById('searchResults').classList.add('hidden');
+            document.getElementById('selectedInfo').classList.add('hidden');
+            
+            // Clear forms
+            document.getElementById('fileInput').value = '';
+            document.getElementById('codelistSearch').value = '';
+            document.getElementById('codeSearch').value = '';
+            document.getElementById('newCodeDescription').value = '';
+            document.getElementById('userName').value = '';
+            document.getElementById('userEmail').value = '';
+            document.getElementById('codeComments').value = '';
+            document.getElementById('codeValidation').classList.add('hidden');
+            document.getElementById('existingCodesResults').classList.add('hidden');
+
+            updateStep(1);
+            log('🔄 Workflow reset - Ready for new file', 'info');
+            
+            // Scroll to top
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // View codes in selected codelist
+        function viewCodes() {
+            if (!selectedCodelist) return;
+            
+            log(`👁️ Viewing codes for: ${selectedCodelist.name}`);
+            
+            const contentHtml = `
+                <h4>Codes in ${selectedCodelist.name}:</h4>
+                <div class="content-viewer">
+                    <table class="content-table">
+                        <thead>
+                            <tr>
+                                <th>Code</th>
+                                <th>Description</th>
+                                <th>Comments</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${selectedCodelist.codes.slice(0, 20).map(code => `
+                                <tr>
+                                    <td>${code.code}</td>
+                                    <td>${code.description}</td>
+                                    <td>${code.comments}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                ${selectedCodelist.codes.length > 20 ? `<p>Showing first 20 of ${selectedCodelist.codes.length} codes</p>` : ''}
+            `;
+            
+            // Create a simple popup
+            const popup = window.open('', '_blank', 'width=800,height=600,scrollbars=yes');
+            popup.document.write(`
+                <html>
+                <head>
+                    <title>Codes - ${selectedCodelist.name}</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 20px; }
+                        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+                        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
+                        th { background: #f5f5f5; }
+                        button { padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; }
+                    </style>
+                </head>
+                <body>
+                    ${contentHtml}
+                    <button onclick="window.close()">Close</button>
+                </body>
+                </html>
+            `);
+        }
+
+        // Initialize
+        log('🟢 Dashboard initialized - Ready for file upload');
+        updateStep(1);
+    </script>
+</body>
+</html>
