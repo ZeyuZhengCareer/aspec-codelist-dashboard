@@ -456,42 +456,35 @@ function showCodeCreation(){
       <div id="manual-validation-message" style="margin-top:1rem;"></div>
     </div>
 
-    <div id="user-info-section" style="display:none;margin-top:2rem;padding:1rem;background:#ebf8ff;border:1px solid #90cdf4;border-radius:8px;">
-      <h4 style="color:#2d3748;margin-bottom:1rem;">User Information</h4>
+<div id="user-info-section" style="display:none;margin-top:2rem;padding:1rem;background:#ebf8ff;border:1px solid #90cdf4;border-radius:8px;">
+  <h4 style="color:#2d3748;margin-bottom:1rem;">User Information</h4>
 
-      <div style="margin-bottom:1rem;">
-        <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Your Name/ID:</label>
-        <input type="text" id="user-name" placeholder="Enter your name or user ID..."
-               style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
-      </div>
+  <div style="margin-bottom:1rem;">
+    <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Your Name/ID:</label>
+    <input type="text" id="user-name" placeholder="Enter your name or user ID..."
+           style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
+  </div>
 
-      <div style="margin-bottom:1rem;">
-        <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Your Email (to receive confirmation):</label>
-        <input type="email" id="user-email" placeholder="you@org.com"
-               style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
-        <label style="display:block;margin-top:.5rem;color:#4a5568;">
-          <input type="checkbox" id="send-confirmation" checked style="margin-right:.5rem;"/>
-          Email me a confirmation
-        </label>
-      </div>
+  <div style="margin-bottom:1rem;">
+    <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Your Email (to receive confirmation):</label>
+    <input type="email" id="user-email" placeholder="you@org.com"
+           style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
+    <p style="margin-top:.5rem;color:#4a5568;font-size:.9rem;line-height:1.4;">
+      Confirmation will be sent to this address and a notification will be sent to info@gissa.com.au.
+    </p>
+  </div>
 
-      <div style="margin-bottom:1rem;">
-        <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Comments (optional):</label>
-        <textarea id="user-comments" placeholder="Any additional comments about this code..."
-                  style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;height:80px;resize:vertical;"></textarea>
-      </div>
+  <div style="margin-bottom:1rem;">
+    <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Comments (optional):</label>
+    <textarea id="user-comments" placeholder="Any additional comments about this code..."
+              style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;height:80px;resize:vertical;"></textarea>
+  </div>
 
-      <div style="margin-bottom:1rem;">
-        <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">
-          <input type="checkbox" id="send-notification" checked style="margin-right:.5rem;"/>
-          Send email notification to info@gissa.com.au
-        </label>
-      </div>
+  <button id="add-code-btn" style="padding:.75rem 2rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="addNewCodeToCodelist()">
+    Add Code to Codelist
+  </button>
+</div>
 
-      <button id="add-code-btn" style="padding:.75rem 2rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="addNewCodeToCodelist()">
-        Add Code to Codelist
-      </button>
-    </div>
   `;
 
   document.getElementById('code-search').addEventListener('input', handleCodeSearch);
@@ -616,27 +609,33 @@ function addNewCodeToCodelist(){
   const userName = document.getElementById('user-name').value.trim();
   const userComments = document.getElementById('user-comments').value.trim();
   const userEmail = document.getElementById('user-email').value.trim();
-  const wantsConfirm = document.getElementById('send-confirmation').checked;
 
-  if (wantsConfirm && !isValidEmail(userEmail)) {
+  // always send confirmation + always notify admin
+  if (!isValidEmail(userEmail)) {
     alert('Please enter a valid email address to receive a confirmation.');
     return;
   }
+
   lastUserName = userName;
   lastUserEmail = userEmail;
-  lastUserWantsConfirm = wantsConfirm;
+  lastUserWantsConfirm = true; // force confirmation email
 
-  if (!selectedNewCode){ alert('Please select a code suggestion first.'); return; }
-  if (!userName){ alert('Please enter your name or user ID.'); return; }
+  if (!selectedNewCode){
+    alert('Please select a code suggestion first.');
+    return;
+  }
+  if (!userName){
+    alert('Please enter your name or user ID.');
+    return;
+  }
 
-const defaultSpecForCodelist =
-  (selectedNewCode && selectedNewCode._spec)
-    ? selectedNewCode._spec
-    : pick(
-        selectedCodelist.codes.find(r => pick(r,'Spec','SPEC')) || {},
-        'Spec','SPEC'
-      );
-
+  const defaultSpecForCodelist =
+    (selectedNewCode && selectedNewCode._spec)
+      ? selectedNewCode._spec
+      : pick(
+          selectedCodelist.codes.find(r => pick(r,'Spec','SPEC')) || {},
+          'Spec','SPEC'
+        );
 
   const newCodeEntry = {
     'Spec': defaultSpecForCodelist,
@@ -650,14 +649,21 @@ const defaultSpecForCodelist =
     'Added - A, Modified - M, Removed - R': 'A'
   };
 
-  if (!selectedCodelist.codes.some(c => pick(c,'Code_Value','CODE_VALUE').toUpperCase()===newCodeEntry.Code_Value.toUpperCase())){
+  if (!selectedCodelist.codes.some(c =>
+    pick(c,'Code_Value','CODE_VALUE').toUpperCase()===newCodeEntry.Code_Value.toUpperCase()
+  )){
     selectedCodelist.codes.push(newCodeEntry);
     sessionChanges.push({
-      type:'added', code:newCodeEntry.Code_Value, description:newCodeEntry.Description,
-      codelist:selectedCodelist.name, timestamp:new Date().toISOString(), addedBy:userName
+      type:'added',
+      code:newCodeEntry.Code_Value,
+      description:newCodeEntry.Description,
+      codelist:selectedCodelist.name,
+      timestamp:new Date().toISOString(),
+      addedBy:userName
     });
     document.getElementById('existing-codes-list').innerHTML = displayExistingCodes();
   }
+
   showCodeAddedSuccess(newCodeEntry);
 
   document.getElementById('create-auto-section').style.display='none';
@@ -668,6 +674,7 @@ const defaultSpecForCodelist =
   const n2 = document.getElementById('manual-code-description'); if(n2) n2.value='';
   selectedNewCode=null;
 }
+
 
 function showCodeAddedSuccess(newCodeEntry){
   const msg=document.createElement('div');
@@ -834,27 +841,30 @@ function showEmailPreview(subject, body, excelBlob, filename, changes, opts = {}
     modal.remove(); resetSession(true);
   });
 
-  const sendBtn = content.querySelector('#simulate-send');
-  sendBtn.addEventListener('click', async () => {
-    try {
-      sendBtn.disabled = true;
-      sendBtn.textContent = "Sending...";
-      await sendEmailViaBackend({ subject, htmlBody: body, excelBlob, filename });
+const sendBtn = content.querySelector('#simulate-send');
+sendBtn.addEventListener('click', async () => {
+  try {
+    sendBtn.disabled = true;
+    sendBtn.textContent = "Sending...";
 
-      if (wantConfirm && userEmail) {
-        const confirmSubject = "RE: We received your A-SPEC Codelist update";
-        const confirmBody =
+    // 1. Send admin notification to info@gissa.com.au with attachment
+    await sendEmailViaBackend({ subject, htmlBody: body, excelBlob, filename });
+
+    // 2. Send confirmation to requester
+    if (userEmail) {
+      const confirmSubject = "RE: We received your A-SPEC Codelist update";
+      const confirmBody =
 `Hi ${userName},
 
 You are receiving this email as confirmation that your submission has been received by the A-SPEC team and includes the following change/s.
 
 Quick summary (${changes ? changes.length : 1} change${(changes && changes.length!==1) ? 's' : ''}):
-${(changes || []).map(c=>`• ${c.code} — ${c.description} (${c.codelist})`).join('\\n')}
+${(changes || []).map(c=>`• ${c.code} — ${c.description} (${c.codelist})`).join('\n')}
 
-**What's Next?**
+What's Next?
 The A-SPEC team will review these changes and update any documentation or processes that reference these codes.
 
-**Questions or feedback?** Reply to this email or contact us at info@gissa.com.au.
+Questions or feedback? Reply to this email or contact us at info@gissa.com.au.
 
 Thanks for staying up to date!
 
@@ -862,17 +872,19 @@ Best regards,
 The A-SPEC team
 ---
 Please Note: This is an automated notification from the A-SPEC Codelists Dashboard.`;
-        await sendEmailViaBackend({ to: userEmail, subject: confirmSubject, htmlBody: confirmBody });
-      }
-      sendBtn.textContent = "✅ Email sent";
-      sendBtn.style.background = "#48bb78";
-      showEmailSentConfirmation();
-    } catch (e) {
-      alert("Send failed: " + e.message);
-      sendBtn.disabled = false;
-      sendBtn.textContent = "📤 Send Email";
+      await sendEmailViaBackend({ to: userEmail, subject: confirmSubject, htmlBody: confirmBody });
     }
-  });
+
+    sendBtn.textContent = "✅ Email sent";
+    sendBtn.style.background = "#48bb78";
+    showEmailSentConfirmation();
+  } catch (e) {
+    alert("Send failed: " + e.message);
+    sendBtn.disabled = false;
+    sendBtn.textContent = "📤 Send Email";
+  }
+});
+
 }
 
 function showEmailSentConfirmation(){
