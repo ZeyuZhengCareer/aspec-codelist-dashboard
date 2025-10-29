@@ -629,8 +629,14 @@ function addNewCodeToCodelist(){
   if (!selectedNewCode){ alert('Please select a code suggestion first.'); return; }
   if (!userName){ alert('Please enter your name or user ID.'); return; }
 
-  const defaultSpecForCodelist =
-    pick(selectedCodelist.codes.find(r => pick(r,'Spec','SPEC')) || {}, 'Spec','SPEC');
+const defaultSpecForCodelist =
+  (selectedNewCode && selectedNewCode._spec)
+    ? selectedNewCode._spec
+    : pick(
+        selectedCodelist.codes.find(r => pick(r,'Spec','SPEC')) || {},
+        'Spec','SPEC'
+      );
+
 
   const newCodeEntry = {
     'Spec': defaultSpecForCodelist,
@@ -980,25 +986,49 @@ function createNewWithSearchTerm(term){
   generateCodeSuggestions();
 }
 
-window.addSearchedCodeToCodelist=function(code,desc,fromName,spec){
-  const entry={
-    'Spec': pick({Spec:spec},'Spec'),
-    'Code_Value':code,
-    'Description':desc,
-    'Codelist_Name':selectedCodelist.name,
-    'Comment':'',
-    'Date_Modified':formatDate(new Date()),
-    'Added_By':'Imported from '+fromName,
-    'Status':'Active',
-    'Added - A, Modified - M, Removed - R':'A'
+window.addSearchedCodeToCodelist = function(code, desc, fromName, spec) {
+  // 1. Stage the new code instead of finalising it immediately.
+  //    We'll reuse the same data shape used by manual/system create.
+  selectedNewCode = {
+    code: code,
+    description: desc,
+    // keep track of where it came from just for context
+    _sourceCodelist: fromName,
+    _spec: spec
   };
-  if (!selectedCodelist.codes.some(c=> pick(c,'Code_Value','CODE_VALUE').toUpperCase()===code.toUpperCase())){
-    selectedCodelist.codes.push(entry);
-    sessionChanges.push({type:'added',code:entry.Code_Value,description:entry.Description,codelist:selectedCodelist.name,timestamp:new Date().toISOString(),addedBy:entry.Added_By});
-    document.getElementById('existing-codes-list').innerHTML=displayExistingCodes();
+
+  // 2. Highlight to the user what is about to be added.
+  const msgDiv = document.getElementById('manual-validation-message');
+  if (msgDiv) {
+    msgDiv.innerHTML = `
+      <div style="background:#f0fff4;border:1px solid #9ae6b4;padding:.75rem;border-radius:4px;color:#22543d;">
+        ✅ Code selected to add into <b>${selectedCodelist.name}</b><br>
+        <div style="margin-top:.5rem;font-weight:600;">Code: ${code}</div>
+        <div style="margin-top:.25rem;">Description: ${desc}</div>
+        <div style="margin-top:.25rem;font-size:.85rem;color:#4a5568;">(Copied from: ${fromName})</div>
+      </div>
+    `;
   }
-  showCodeAddedSuccess(entry);
-}
+
+  // 3. Make sure the "manual create" and "auto create" UI are hidden,
+  //    because we're doing a direct copy, not generating.
+  const autoSec = document.getElementById('create-auto-section');
+  const manSec  = document.getElementById('create-manual-section');
+  if (autoSec) autoSec.style.display = 'none';
+  if (manSec)  manSec.style.display  = 'none';
+
+  // 4. Show the user info capture (name, email, comments, etc).
+  const userInfoSection = document.getElementById('user-info-section');
+  if (userInfoSection) {
+    userInfoSection.style.display = 'block';
+    userInfoSection.scrollIntoView({behavior:'smooth'});
+  }
+
+  // 5. Pre-fill nothing else – we haven't actually pushed this code
+  //    into selectedCodelist.codes yet.
+  //    That only happens AFTER they click "Add Code to Codelist",
+  //    which calls addNewCodeToCodelist().
+};
 
 /* -------------------- Load file & boot -------------------- */
 async function loadMasterFile(){
