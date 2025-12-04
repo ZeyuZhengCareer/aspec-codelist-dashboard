@@ -629,13 +629,14 @@ function addNewCodeToCodelist(){
     return;
   }
 
-  const defaultSpecForCodelist =
-    (selectedNewCode && selectedNewCode._spec)
-      ? selectedNewCode._spec
-      : pick(
-          selectedCodelist.codes.find(r => pick(r,'Spec','SPEC')) || {},
-          'Spec','SPEC'
-        );
+// Always use the SPEC from the *target* codelist
+const defaultSpecForCodelist =
+  pick(
+    selectedCodelist.codes.find(r => pick(r, 'Spec', 'SPEC')) || {},
+    'Spec',
+    'SPEC'
+  ) || (selectedCodelist.specs && selectedCodelist.specs[0]) || '';
+
 
   const newCodeEntry = {
     'Spec': defaultSpecForCodelist,
