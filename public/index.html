@@ -303,9 +303,8 @@ function handleCodelistSearch(e){
     CL_filtered = CL_all.slice();
   } else {
     CL_filtered = CL_all.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      (c.description || '').toLowerCase().includes(q)
-    );
+    (c.name || '').toLowerCase().includes(q)
+   );
   }
   CL_page = 1;
   renderCodelistPage();
@@ -430,7 +429,7 @@ function showCodeCreation(){
       <h4 style="color:#2d3748;margin-bottom:1rem;">🤖 Create New Code - System Generated</h4>
       <div style="margin-bottom:1rem;">
         <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Description for new code:</label>
-        <input type="text" id="new-code-description" placeholder="Enter description and system will generate code names..."
+        <input type="text" id="new-code-description" placeholder="Enter description and system will suggest unique code names..."
                style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
       </div>
       <div id="code-suggestions" style="margin-top:1rem;"></div>
@@ -532,7 +531,7 @@ function validateAndCreateManualCode(){
     return;
   }
   if (codeExists(codeName)){
-    msgDiv.innerHTML = '<div style="background:#fee;border:1px solid #f88;padding:.75rem;border-radius:4px;color:#c00;">❌ This code already exists in the selected codelist.</div>';
+    msgDiv.innerHTML = '<div style="background:#fee;border:1px solid #f88;padding:.75rem;border-radius:4px;color:#c00;">❌ This code already exists in the master codelist.</div>';
     return;
   }
 
@@ -555,7 +554,7 @@ function generateCodeSuggestions(){
 
   const suggestions = createCodeSuggestions(description);
   suggestionsDiv.innerHTML = `
-    <h5 style="color:#2d3748;margin-bottom:1rem;">Suggested Codes (meeting your criteria):</h5>
+    <h5 style="color:#2d3748;margin-bottom:1rem;">Suggested Unique Codes:</h5>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
     ${suggestions.map((s)=>`
       <div class="code-suggestion" data-code="${s.code}"
@@ -572,29 +571,155 @@ function generateCodeSuggestions(){
   `;
 }
 
-function createCodeSuggestions(description){
-  const words = description.toUpperCase().split(/\s+/).filter(Boolean);
-  const acronym = words.map(w=>w.charAt(0)).join('').substring(0,6);
-  let smart='';
-  if (words.length===1){ smart=words[0].substring(0,10); }
-  else if (words.length===2){ smart=(words[0].substring(0,5)+words[1].substring(0,5)).substring(0,10); }
-  else { smart=words.map((w,i)=> i<2 ? w.substring(0,3) : w.charAt(0)).join('').substring(0,10); }
-  const base=[{code:acronym,explanation:'Acronym using first letter of each word'},
-              {code:smart,explanation:'Smart abbreviation combining word parts'}];
+function sanitizeCode(code){
+  return (code || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .substring(0, 10);
+}
 
-  return base.filter(s=>s.code.length>0).map(s=>{
-    let final=s.code, c=1;
-    while(codeExists(final) && c<100){
-      final = (final.length<9) ? s.code + c : s.code.substring(0,9)+c;
-      c++;
+function generateRandomSuffix(length = 4){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < length; i++){
+    out += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return out;
+}
+
+function makeUniqueCode(baseCode, fallbackPrefix = 'CD'){
+  let cleanBase = sanitizeCode(baseCode);
+
+  if (cleanBase && !codeExists(cleanBase)) {
+    return cleanBase;
+  }
+
+  const prefix = sanitizeCode(fallbackPrefix).substring(0, 6) || 'CD';
+
+  for (let i = 0; i < 200; i++){
+    const randomCode = sanitizeCode((prefix + generateRandomSuffix(4)).substring(0, 10));
+    if (randomCode && !codeExists(randomCode)) {
+      return randomCode;
     }
-    return {...s, code:final};
-  });
+  }
+
+  const ts = Date.now().toString().slice(-6);
+  return sanitizeCode((prefix + ts).substring(0, 10));
+}
+
+
+function sanitizeCode(code){
+  return (code || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .substring(0, 10);
+}
+
+function generateRandomSuffix(length = 4){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let out = '';
+  for (let i = 0; i < length; i++){
+    out += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return out;
+}
+
+function codeExistsInSelectedCodelist(code){
+  if (!selectedCodelist) return false;
+  const check = (code || '').toUpperCase();
+  return selectedCodelist.codes.some(ec =>
+    pick(ec,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === check
+  );
+}
+
+function codeExistsAnywhere(code){
+  const check = (code || '').toUpperCase();
+  return codelists.some(cl =>
+    cl.codes.some(ec =>
+      pick(ec,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === check
+    )
+  );
 }
 
 function codeExists(code){
-  return selectedCodelist.codes.some(ec => pick(ec,'Code_Value','CODE_VALUE','Code','CODE').toUpperCase()===code.toUpperCase());
+  return codeExistsAnywhere(code);
 }
+
+function makeUniqueCode(baseCode, fallbackPrefix = 'CD'){
+  const cleanBase = sanitizeCode(baseCode);
+
+  if (cleanBase && !codeExistsAnywhere(cleanBase)) {
+    return cleanBase;
+  }
+
+  const prefix = sanitizeCode(fallbackPrefix).substring(0, 6) || 'CD';
+
+  for (let i = 0; i < 200; i++){
+    const randomCode = sanitizeCode((prefix + generateRandomSuffix(4)).substring(0, 10));
+    if (randomCode && !codeExistsAnywhere(randomCode)) {
+      return randomCode;
+    }
+  }
+
+  const ts = Date.now().toString().slice(-6);
+  return sanitizeCode((prefix + ts).substring(0, 10));
+}
+
+function createCodeSuggestions(description){
+  const words = description.toUpperCase().split(/\s+/).filter(Boolean);
+
+  const acronymBase = sanitizeCode(
+    words.map(w => w.charAt(0)).join('').substring(0, 6)
+  );
+
+  let smartBase = '';
+  if (words.length === 1){
+    smartBase = sanitizeCode(words[0].substring(0, 10));
+  } else if (words.length === 2){
+    smartBase = sanitizeCode(
+      (words[0].substring(0, 5) + words[1].substring(0, 5)).substring(0, 10)
+    );
+  } else {
+    smartBase = sanitizeCode(
+      words.map((w, i) => i < 2 ? w.substring(0, 3) : w.charAt(0)).join('').substring(0, 10)
+    );
+  }
+
+  const results = [];
+  const used = new Set();
+
+  function pushSuggestion(preferredCode, explanation, fallbackPrefix){
+    let finalCode = preferredCode;
+
+    if (!finalCode || codeExistsAnywhere(finalCode) || used.has(finalCode)){
+      finalCode = makeUniqueCode(fallbackPrefix, fallbackPrefix);
+      explanation += ' (preferred code already existed, so a unique random code was generated)';
+    }
+
+    if (!used.has(finalCode)){
+      used.add(finalCode);
+      results.push({
+        code: finalCode,
+        explanation
+      });
+    }
+  }
+
+  pushSuggestion(
+    acronymBase,
+    'First-letter acronym',
+    acronymBase || 'AC'
+  );
+
+  pushSuggestion(
+    smartBase,
+    'Abbreviation using word parts',
+    smartBase || acronymBase || 'CD'
+  );
+
+  return results;
+}
+
 
 function selectCodeSuggestion(code, description){
   selectedNewCode = {code, description};
@@ -605,12 +730,12 @@ function selectCodeSuggestion(code, description){
 }
 
 /* -------------------- Add new code -------------------- */
+
 function addNewCodeToCodelist(){
   const userName = document.getElementById('user-name').value.trim();
   const userComments = document.getElementById('user-comments').value.trim();
   const userEmail = document.getElementById('user-email').value.trim();
 
-  // always send confirmation + always notify admin
   if (!isValidEmail(userEmail)) {
     alert('Please enter a valid email address to receive a confirmation.');
     return;
@@ -629,14 +754,12 @@ function addNewCodeToCodelist(){
     return;
   }
 
-// Always use the SPEC from the *target* codelist
-const defaultSpecForCodelist =
-  pick(
-    selectedCodelist.codes.find(r => pick(r, 'Spec', 'SPEC')) || {},
-    'Spec',
-    'SPEC'
-  ) || (selectedCodelist.specs && selectedCodelist.specs[0]) || '';
-
+  const defaultSpecForCodelist =
+    pick(
+      selectedCodelist.codes.find(r => pick(r, 'Spec', 'SPEC')) || {},
+      'Spec',
+      'SPEC'
+    ) || (selectedCodelist.specs && selectedCodelist.specs[0]) || '';
 
   const newCodeEntry = {
     'Spec': defaultSpecForCodelist,
@@ -650,20 +773,21 @@ const defaultSpecForCodelist =
     'Added - A, Modified - M, Removed - R': 'A'
   };
 
-  if (!selectedCodelist.codes.some(c =>
-    pick(c,'Code_Value','CODE_VALUE').toUpperCase()===newCodeEntry.Code_Value.toUpperCase()
-  )){
-    selectedCodelist.codes.push(newCodeEntry);
-    sessionChanges.push({
-      type:'added',
-      code:newCodeEntry.Code_Value,
-      description:newCodeEntry.Description,
-      codelist:selectedCodelist.name,
-      timestamp:new Date().toISOString(),
-      addedBy:userName
-    });
-    document.getElementById('existing-codes-list').innerHTML = displayExistingCodes();
+  if (codeExistsAnywhere(newCodeEntry.Code_Value)){
+    alert(`Code "${newCodeEntry.Code_Value}" already exists in the master codelist. Please use a different unique code.`);
+    return;
   }
+
+  selectedCodelist.codes.push(newCodeEntry);
+  sessionChanges.push({
+    type:'added',
+    code:newCodeEntry.Code_Value,
+    description:newCodeEntry.Description,
+    codelist:selectedCodelist.name,
+    timestamp:new Date().toISOString(),
+    addedBy:userName
+  });
+  document.getElementById('existing-codes-list').innerHTML = displayExistingCodes();
 
   showCodeAddedSuccess(newCodeEntry);
 
@@ -671,9 +795,13 @@ const defaultSpecForCodelist =
   document.getElementById('create-manual-section').style.display='none';
   document.getElementById('user-info-section').style.display='none';
   document.getElementById('new-code-description').value='';
-  const n1 = document.getElementById('manual-code-name'); if(n1) n1.value='';
-  const n2 = document.getElementById('manual-code-description'); if(n2) n2.value='';
-  selectedNewCode=null;
+
+  const n1 = document.getElementById('manual-code-name');
+  if(n1) n1.value='';
+  const n2 = document.getElementById('manual-code-description');
+  if(n2) n2.value='';
+
+  selectedNewCode = null;
 }
 
 
@@ -935,6 +1063,7 @@ function resetSession(deep=false){
 }
 
 /* -------------------- Search across all codelists -------------------- */
+
 function handleCodeSearch(e){
   const q=e.target.value.toLowerCase().trim();
   const results=document.getElementById('search-results');
@@ -968,18 +1097,16 @@ function handleCodeSearch(e){
         ${matches.map(item=>{
           const inSelected=item.codelistName===selectedCodelist.name;
           const color=inSelected?'#22c55e':'#ef4444';
-          const btn = !inSelected ? `
-            <button onclick="addSearchedCodeToCodelist('${item.code.replace(/'/g,"\\'")}','${item.description.replace(/'/g,"\\'")}','${item.codelistName.replace(/'/g,"\\'")}','${(item.spec||'').replace(/'/g,"\\'")}'
-                    )" style="margin-top:.5rem;padding:.5rem 1rem;background:#48bb78;color:#fff;border:none;border-radius:4px;cursor:pointer;">
-              ➕ Add to "${selectedCodelist.name}"
-            </button>` : '';
+          const actionText = !inSelected
+            ? `<div style="margin-top:.5rem;font-size:.9rem;color:#c05621;">This code already exists in the master codelist and cannot be re-used.</div>`
+            : '';
           return `
             <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:1rem;margin-bottom:.5rem;">
               <div style="font-weight:600;color:#2d3748;">${item.code}</div>
               <div style="color:#718096;margin:.25rem 0;">${item.description}</div>
               <div style="color:${color};font-size:.95rem;">In: <b>${item.codelistName}</b></div>
               ${item.comment ? `<div style="font-size:.9rem;color:#a0aec0;">${item.comment}</div>` : ''}
-              ${btn}
+              ${actionText}
             </div>`;
         }).join('')}
       </div>`;
@@ -995,24 +1122,27 @@ function handleCodeSearch(e){
   }
 }
 
+
 function createNewWithSearchTerm(term){
   showAutoCodeCreation();
   document.getElementById('new-code-description').value=term;
   generateCodeSuggestions();
 }
 
+
 window.addSearchedCodeToCodelist = function(code, desc, fromName, spec) {
-  // 1. Stage the new code instead of finalising it immediately.
-  //    We'll reuse the same data shape used by manual/system create.
+  if (codeExistsAnywhere(code)) {
+    alert(`Code "${code}" already exists in the master codelist and cannot be added again.`);
+    return;
+  }
+
   selectedNewCode = {
     code: code,
     description: desc,
-    // keep track of where it came from just for context
     _sourceCodelist: fromName,
     _spec: spec
   };
 
-  // 2. Highlight to the user what is about to be added.
   const msgDiv = document.getElementById('manual-validation-message');
   if (msgDiv) {
     msgDiv.innerHTML = `
@@ -1025,25 +1155,18 @@ window.addSearchedCodeToCodelist = function(code, desc, fromName, spec) {
     `;
   }
 
-  // 3. Make sure the "manual create" and "auto create" UI are hidden,
-  //    because we're doing a direct copy, not generating.
   const autoSec = document.getElementById('create-auto-section');
   const manSec  = document.getElementById('create-manual-section');
   if (autoSec) autoSec.style.display = 'none';
   if (manSec)  manSec.style.display  = 'none';
 
-  // 4. Show the user info capture (name, email, comments, etc).
   const userInfoSection = document.getElementById('user-info-section');
   if (userInfoSection) {
     userInfoSection.style.display = 'block';
     userInfoSection.scrollIntoView({behavior:'smooth'});
   }
-
-  // 5. Pre-fill nothing else – we haven't actually pushed this code
-  //    into selectedCodelist.codes yet.
-  //    That only happens AFTER they click "Add Code to Codelist",
-  //    which calls addNewCodeToCodelist().
 };
+
 
 /* -------------------- Load file & boot -------------------- */
 async function loadMasterFile(){
