@@ -153,8 +153,8 @@ const EMAIL_TO   = "info@gissa.com.au";
 const EMAIL_FROM = "info@gissa.com.au"; // must be a verified sender
 
 // Hardcoded master file name in the same folder:
-const MASTER_FILE_URL  = "A-SPEC CODELISTS Version 2.0.5 MASTER WIP - 20251008.xlsx";
-const MASTER_FILE_NAME = "A-SPEC CODELISTS Version 2.0.5 MASTER WIP - 20251008.xlsx";
+const MASTER_FILE_URL  = "A-SPEC CODELISTS Version 2.0.7 MASTER WIP - 20260505.xlsx";
+const MASTER_FILE_NAME = "A-SPEC CODELISTS Version 2.0.7 MASTER WIP - 20260505.xlsx";
 
 /* -------------------- Utils -------------------- */
 function isValidEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s); }
@@ -222,7 +222,7 @@ let selectedCodelist = null;
 let selectedExistingCode = null;
 let selectedNewCode = null;
 let sessionChanges = [];
-let lastUserName = '', lastUserEmail = '', lastUserWantsConfirm = false;
+let lastUserName = '', lastUserEmail = '', lastUserOrganisation = '', lastUserWantsConfirm = false;
 
 /* -------------------- Data processing -------------------- */
 function processCodelistData(data){
@@ -367,26 +367,23 @@ function selectCodelist(evt, codelistName){
 
 /* -------------------- Existing + creation UI -------------------- */
 function displayExistingCodes(){
-  return selectedCodelist.codes.map((code,idx)=>`
-    <div class="existing-code-item" data-index="${idx}" style="padding:1rem;border-bottom:1px solid #e2e8f0;cursor:pointer;transition:background-color .2s;"
-         onmouseover="this.style.backgroundColor='#f7fafc'"
-         onmouseout="this.style.backgroundColor='white'"
-         onclick="selectExistingCode(${idx})">
-      <div style="display:flex;justify-content:space-between;align-items:start;">
-        <div style="flex:1;">
-          <div style="font-weight:600;color:#2d3748;margin-bottom:.25rem;">
-            ${pick(code,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE') || 'N/A'}
-          </div>
-          <div style="color:#718096;margin-bottom:.25rem;">
-            ${pick(code,'Description','DESCRIPTION') || 'No description'}
-          </div>
-          ${pick(code,'Comment','COMMENT','comment') ? `<div style="font-size:.9rem;color:#a0aec0;">${pick(code,'Comment','COMMENT','comment')}</div>` : ''}
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
+  return selectedCodelist.codes.map((code,idx)=>{
+    const codeVal = pick(code,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE') || 'N/A';
+    const desc = pick(code,'Description','DESCRIPTION') || 'No description';
+    const comment = pick(code,'Comment','COMMENT','comment');
 
+    // Browsing only: users can review current codes here.
+    // Copying is only available from the search results section below.
+    return `
+    <div class="existing-code-item" data-index="${idx}" style="padding:1rem;border-bottom:1px solid #e2e8f0;transition:background-color .2s;"
+         onmouseover="this.style.backgroundColor='#f7fafc'"
+         onmouseout="this.style.backgroundColor='white'">
+      <div style="font-weight:600;color:#2d3748;margin-bottom:.25rem;">${codeVal}</div>
+      <div style="color:#718096;margin-bottom:.25rem;">${desc}</div>
+      ${comment ? `<div style="font-size:.9rem;color:#a0aec0;">${comment}</div>` : ''}
+    </div>`;
+  }).join('');
+}
 
 function showCodeCreation(){
   document.getElementById('creation-section').style.display='block';
@@ -463,6 +460,12 @@ function showCodeCreation(){
     <input type="text" id="user-name" placeholder="Enter your name or user ID..."
            style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
   </div>
+  
+  <div style="margin-bottom:1rem;">
+  <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Your Organisation:</label>
+  <input type="text" id="user-organisation" placeholder="Enter your organisation name..."
+         style="width:100%;padding:.5rem;border:1px solid #e2e8f0;border-radius:4px;"/>
+  </div>
 
   <div style="margin-bottom:1rem;">
     <label style="display:block;margin-bottom:.5rem;color:#4a5568;font-weight:600;">Your Email (to receive confirmation):</label>
@@ -480,7 +483,7 @@ function showCodeCreation(){
   </div>
 
   <button id="add-code-btn" style="padding:.75rem 2rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;" onclick="addNewCodeToCodelist()">
-    Add Code to Codelist
+    Add Code/s to Codelist
   </button>
 </div>
 
@@ -491,11 +494,195 @@ function showCodeCreation(){
 }
 
 function selectExistingCode(index){
+  // kept for highlight only — copying is now via showCopyPicker
   selectedExistingCode = selectedCodelist.codes[index];
-  document.querySelectorAll('.existing-code-item').forEach(i=>{i.style.backgroundColor='white';i.style.border='1px solid transparent';});
-  const sel = document.querySelector(`[data-index="${index}"]`);
-  sel.style.backgroundColor='#ebf8ff'; sel.style.border='1px solid #667eea';
 }
+
+// ── Unified inline codelist picker ──────────────────────────────────────────
+// pickerId  : id of the <div> to render the picker into
+// code/desc/spec : the code being copied
+// sourceCodelistName (optional) : where the code originally lives
+window.escapeForSingleQuote = function(value) {
+  return String(value || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+};
+
+// ── Copy picker: current codelist button + mini searchable codelist list ─────
+window.showCopyPicker = function(pickerId, code, desc, spec, sourceCodelistName) {
+  // Close any other open pickers first
+  document.querySelectorAll('.copy-picker-panel').forEach(p => {
+    if (p.id !== pickerId) { p.style.display = 'none'; p.innerHTML = ''; }
+  });
+
+  const panel = document.getElementById(pickerId);
+  if (!panel) return;
+
+  // Toggle: if already open, close it
+  if (panel.style.display === 'block') {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    return;
+  }
+
+  const currentName = selectedCodelist ? selectedCodelist.name : '';
+  const currentAlreadyHas = selectedCodelist
+    ? selectedCodelist.codes.some(ec =>
+        pick(ec,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === code.toUpperCase()
+      )
+    : true;
+
+  const ec = escapeForSingleQuote(code);
+  const ed = escapeForSingleQuote(desc);
+  const es = escapeForSingleQuote(spec || '');
+  const et = escapeForSingleQuote(currentName);
+  const srcLabel = sourceCodelistName
+    ? `<div style="font-size:.82rem;color:#718096;margin-bottom:.5rem;">Source: <b>${sourceCodelistName}</b></div>`
+    : '';
+
+  const currentAction = currentAlreadyHas
+    ? `<div style="padding:.6rem .75rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px;color:#4a5568;">
+         <b>Current target:</b> ${currentName || 'Not selected'} <span style="color:#c05621;">— already has this code</span>
+       </div>`
+    : `<div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;padding:.55rem .65rem;background:#fff;border:1px solid #c3d0f5;border-radius:8px;">
+         <div style="flex:1;min-width:220px;color:#2d3748;font-size:.9rem;">
+           <b>Current target:</b> ${currentName}
+         </div>
+         <button onclick="confirmCopyToCodelist('${ec}','${ed}','${es}','${et}','${pickerId}')"
+           style="padding:.4rem .9rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.88rem;white-space:nowrap;">
+           ✅ Confirm Copy
+         </button>
+       </div>`;
+
+  panel.className = 'copy-picker-panel';
+  panel.style.display = 'block';
+  panel.dataset.copyCode = code;
+  panel.dataset.copyDesc = desc;
+  panel.dataset.copySpec = spec || '';
+  panel.innerHTML = `
+    <div style="margin-top:.75rem;padding:.85rem .9rem;background:#f0f4ff;border:1px solid #c3d0f5;border-radius:8px;">
+      <div style="display:flex;justify-content:space-between;gap:.75rem;align-items:flex-start;margin-bottom:.55rem;">
+        <div>
+          <div style="font-weight:600;color:#2d3748;margin-bottom:.2rem;">📋 Copy <span style="font-family:monospace;">${code}</span> to a codelist</div>
+          <div style="font-size:.87rem;color:#718096;">${desc}</div>
+          ${srcLabel}
+        </div>
+        <button onclick="document.getElementById('${pickerId}').style.display='none';document.getElementById('${pickerId}').innerHTML='';"
+          style="padding:.3rem .55rem;background:#e2e8f0;color:#4a5568;border:none;border-radius:6px;cursor:pointer;font-size:.85rem;white-space:nowrap;">
+          ✕
+        </button>
+      </div>
+
+      <div style="margin-bottom:.7rem;">
+        ${currentAction}
+      </div>
+
+      <div style="border-top:1px solid #c3d0f5;padding-top:.7rem;">
+        <label style="display:block;font-size:.86rem;color:#4a5568;font-weight:600;margin-bottom:.35rem;">Or search another target codelist:</label>
+        <input type="text" id="picker-search-${pickerId}" placeholder="Search codelist name..."
+          oninput="renderCopyTargetCards('${pickerId}')"
+          style="width:100%;padding:.5rem .6rem;border:1px solid #c3d0f5;border-radius:6px;background:#fff;color:#2d3748;font-size:.9rem;"/>
+        <div id="picker-results-${pickerId}" style="margin-top:.55rem;display:none;"></div>
+      </div>
+
+      <div id="picker-msg-${pickerId}" style="margin-top:.5rem;"></div>
+    </div>`;
+};
+
+window.renderCopyTargetCards = function(pickerId) {
+  const panel = document.getElementById(pickerId);
+  const search = document.getElementById(`picker-search-${pickerId}`);
+  const results = document.getElementById(`picker-results-${pickerId}`);
+  if (!panel || !search || !results) return;
+
+  const code = panel.dataset.copyCode || '';
+  const desc = panel.dataset.copyDesc || '';
+  const spec = panel.dataset.copySpec || '';
+  const q = search.value.toLowerCase().trim();
+
+  if (q.length < 1) {
+    results.style.display = 'none';
+    results.innerHTML = '';
+    return;
+  }
+
+  const currentName = selectedCodelist ? selectedCodelist.name : '';
+  const allMatches = codelists
+    .filter(cl => cl.name !== currentName && cl.name.toLowerCase().includes(q))
+    .map(cl => {
+      const alreadyHas = cl.codes.some(ec =>
+        pick(ec,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === code.toUpperCase()
+      );
+      return { cl, alreadyHas };
+    });
+
+  const matches = allMatches.slice(0, 6);
+  results.style.display = 'block';
+
+  if (matches.length === 0) {
+    results.innerHTML = `<div style="padding:.65rem;background:#fff;border:1px solid #e2e8f0;border-radius:6px;color:#718096;">No matching codelists found.</div>`;
+    return;
+  }
+
+  const ec = escapeForSingleQuote(code);
+  const ed = escapeForSingleQuote(desc);
+  const es = escapeForSingleQuote(spec || '');
+  const moreNote = allMatches.length > matches.length
+    ? `<div style="font-size:.8rem;color:#718096;margin-top:.35rem;">Showing first ${matches.length} matches. Type more letters to narrow the result.</div>`
+    : '';
+
+  results.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.45rem;">
+      ${matches.map(({cl, alreadyHas}) => {
+        const et = escapeForSingleQuote(cl.name);
+        const specText = cl.specs && cl.specs.length ? `Spec: ${cl.specs.slice(0,2).join(', ')}${cl.specs.length > 2 ? ' +' + (cl.specs.length - 2) + ' more' : ''}` : '';
+        const action = alreadyHas
+          ? `<div style="font-size:.8rem;color:#c05621;margin-top:.25rem;">Already has this code</div>`
+          : `<button onclick="confirmCopyToCodelist('${ec}','${ed}','${es}','${et}','${pickerId}')"
+               style="margin-top:.35rem;padding:.32rem .7rem;background:#667eea;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:.82rem;white-space:nowrap;">
+               Copy here
+             </button>`;
+
+        return `
+          <div style="padding:.55rem .65rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px;min-height:86px;">
+            <div style="font-weight:600;color:#2d3748;font-size:.9rem;line-height:1.25;">${cl.name}</div>
+            <div style="font-size:.78rem;color:#718096;margin-top:.15rem;">${cl.codes.length} codes${specText ? ' • ' + specText : ''}</div>
+            ${action}
+          </div>`;
+      }).join('')}
+    </div>
+    ${moreNote}`;
+};
+
+// Called when user confirms which codelist to copy to
+window.confirmCopyToCodelist = function(code, desc, spec, targetName, pickerId) {
+  if (!targetName) {
+    const msg = document.getElementById('picker-msg-' + pickerId);
+    if (msg) msg.innerHTML = '<span style="color:#c05621;font-size:.87rem;">⚠️ Please select a target codelist first.</span>';
+    return;
+  }
+
+  const targetCL = codelists.find(cl => cl.name === targetName);
+  if (!targetCL) return;
+
+  const alreadyHas = targetCL.codes.some(ec =>
+    pick(ec,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === code.toUpperCase()
+  );
+  if (alreadyHas) {
+    const msg = document.getElementById('picker-msg-' + pickerId);
+    if (msg) msg.innerHTML = `<span style="color:#c05621;font-size:.87rem;">⚠️ <b>${code}</b> already exists in <b>${targetName}</b>.</span>`;
+    return;
+  }
+
+  selectedCodelist = targetCL;
+  selectedNewCode = { code, description: desc, _spec: spec };
+
+  const panel = document.getElementById(pickerId);
+  if (panel) { panel.style.display = 'none'; panel.innerHTML = ''; }
+
+  const h3 = document.querySelector('#creation-content h3');
+  if (h3) h3.textContent = `Selected Codelist: ${targetName}`;
+
+  addNewCodeToCodelist({ skipUserInfo: true });
+};
 
 function showAutoCodeCreation(){
   document.getElementById('create-auto-section').style.display='block';
@@ -535,16 +722,11 @@ function validateAndCreateManualCode(){
     return;
   }
 
-  msgDiv.innerHTML = `
-    <div style="background:#f0fff4;border:1px solid #9ae6b4;padding:.75rem;border-radius:4px;color:#22543d;">
-      ✅ Code validated successfully!
-      <div style="margin-top:.5rem;font-weight:600;">Code: ${codeName}</div>
-      <div style="margin-top:.25rem;">Description: ${description}</div>
-    </div>
-  `;
   selectedNewCode = {code: codeName, description: description};
-  document.getElementById('user-info-section').style.display='block';
-  document.getElementById('user-info-section').scrollIntoView({behavior:'smooth'});
+
+  // Manual code validation is now treated as the add action.
+  // User details are collected once before the final email notification, not after each change.
+  addNewCodeToCodelist({ skipUserInfo: true });
 }
 
 function generateCodeSuggestions(){
@@ -726,31 +908,39 @@ function selectCodeSuggestion(code, description){
   document.querySelectorAll('.code-suggestion').forEach(i=>{i.style.borderColor='#e2e8f0';i.style.backgroundColor='#fff';});
   const sel = document.querySelector(`[data-code="${code}"]`);
   if (sel){ sel.style.borderColor='#48bb78'; sel.style.backgroundColor='#f0fff4'; }
-  document.getElementById('user-info-section').style.display='block';
+
+  // Selecting a generated suggestion is now treated as the add action.
+  // This keeps the create-new-code workflow consistent with the copy workflow.
+  addNewCodeToCodelist({ skipUserInfo: true });
 }
 
 /* -------------------- Add new code -------------------- */
 
-function addNewCodeToCodelist(){
-  const userName = document.getElementById('user-name').value.trim();
-  const userComments = document.getElementById('user-comments').value.trim();
-  const userEmail = document.getElementById('user-email').value.trim();
+function addNewCodeToCodelist(options = {}){
+  const userNameEl = document.getElementById('user-name');
+  const userOrganisationEl = document.getElementById('user-organisation');
+  const userCommentsEl = document.getElementById('user-comments');
+  const userEmailEl = document.getElementById('user-email');
 
-  if (!isValidEmail(userEmail)) {
+  const userName = userNameEl ? userNameEl.value.trim() : '';
+  const userOrganisation = userOrganisationEl ? userOrganisationEl.value.trim() : '';
+  const userComments = userCommentsEl ? userCommentsEl.value.trim() : '';
+  const userEmail = userEmailEl ? userEmailEl.value.trim() : '';
+
+  // User details are optional while users are still making changes.
+  // If they enter an email at this stage, validate it; otherwise collect details before final email send.
+  if (userEmail && !isValidEmail(userEmail)) {
     alert('Please enter a valid email address to receive a confirmation.');
     return;
   }
 
-  lastUserName = userName;
-  lastUserEmail = userEmail;
-  lastUserWantsConfirm = true; // force confirmation email
+  if (userName) lastUserName = userName;
+  if (userEmail) lastUserEmail = userEmail;
+  if (userOrganisation) lastUserOrganisation = userOrganisation;
+  if (userEmail) lastUserWantsConfirm = true;
 
   if (!selectedNewCode){
     alert('Please select a code suggestion first.');
-    return;
-  }
-  if (!userName){
-    alert('Please enter your name or user ID.');
     return;
   }
 
@@ -768,13 +958,14 @@ function addNewCodeToCodelist(){
     'Codelist_Name': selectedCodelist.name,
     'Comment': userComments,
     'Date_Modified': formatDate(new Date()),
-    'Added_By': userName,
+    'Added_By': userName || lastUserName || '',
+    'Organisation': userOrganisation || lastUserOrganisation || '',
     'Status': 'Active',
     'Added - A, Modified - M, Removed - R': 'A'
   };
 
-  if (codeExistsAnywhere(newCodeEntry.Code_Value)){
-    alert(`Code "${newCodeEntry.Code_Value}" already exists in the master codelist. Please use a different unique code.`);
+  if (codeExistsInSelectedCodelist(newCodeEntry.Code_Value)){
+    alert(`Code "${newCodeEntry.Code_Value}" already exists in "${selectedCodelist.name}". No need to add it again.`);
     return;
   }
 
@@ -785,16 +976,25 @@ function addNewCodeToCodelist(){
     description:newCodeEntry.Description,
     codelist:selectedCodelist.name,
     timestamp:new Date().toISOString(),
-    addedBy:userName
+    addedBy:userName || lastUserName || '',
+    organisation:userOrganisation || lastUserOrganisation || '',
+    requesterEmail:userEmail || lastUserEmail || '',
+    comments:userComments,
+    entryRef:newCodeEntry
   });
-  document.getElementById('existing-codes-list').innerHTML = displayExistingCodes();
 
-  showCodeAddedSuccess(newCodeEntry);
+  const existingList = document.getElementById('existing-codes-list');
+  if (existingList) existingList.innerHTML = displayExistingCodes();
 
-  document.getElementById('create-auto-section').style.display='none';
-  document.getElementById('create-manual-section').style.display='none';
-  document.getElementById('user-info-section').style.display='none';
-  document.getElementById('new-code-description').value='';
+  const autoSec = document.getElementById('create-auto-section');
+  const manSec  = document.getElementById('create-manual-section');
+  const userSec = document.getElementById('user-info-section');
+  if (autoSec) autoSec.style.display='none';
+  if (manSec) manSec.style.display='none';
+  if (userSec) userSec.style.display='none';
+
+  const newDesc = document.getElementById('new-code-description');
+  if (newDesc) newDesc.value='';
 
   const n1 = document.getElementById('manual-code-name');
   if(n1) n1.value='';
@@ -802,8 +1002,9 @@ function addNewCodeToCodelist(){
   if(n2) n2.value='';
 
   selectedNewCode = null;
-}
 
+  askForMoreChanges();
+}
 
 function showCodeAddedSuccess(newCodeEntry){
   const msg=document.createElement('div');
@@ -849,11 +1050,99 @@ function askForMoreChanges(){
   modal.appendChild(content);
   document.body.appendChild(modal);
   window.continueChanges=()=>{modal.remove();};
-  window.finalizeAndSendEmail=()=>{modal.remove();sendBatchEmailNotification();};
+  window.finalizeAndSendEmail=()=>{modal.remove();validateUserInfoAndSend();};
+}
+
+function applyUserInfoToSessionChanges(userName, userOrganisation, userEmail, userComments){
+  lastUserName = userName;
+  lastUserOrganisation = userOrganisation;
+  lastUserEmail = userEmail;
+  lastUserWantsConfirm = true;
+
+  sessionChanges.forEach(ch => {
+    ch.addedBy = userName;
+    ch.organisation = userOrganisation;
+    ch.requesterEmail = userEmail;
+    if (userComments && !ch.comments) ch.comments = userComments;
+    if (ch.entryRef) {
+      ch.entryRef.Added_By = userName;
+      ch.entryRef.Organisation = userOrganisation;
+      if (userComments && !ch.entryRef.Comment) ch.entryRef.Comment = userComments;
+    }
+  });
+}
+
+function validateUserInfoAndSend(){
+  if (lastUserName && lastUserOrganisation && isValidEmail(lastUserEmail)) {
+    sendBatchEmailNotification();
+    return;
+  }
+
+  const modal=document.createElement('div');
+  modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:flex;justify-content:center;align-items:center;';
+  const content=document.createElement('div');
+  content.style.cssText='background:#fff;padding:2rem;border-radius:12px;max-width:640px;width:92%;box-shadow:0 20px 40px rgba(0,0,0,.3);';
+  content.innerHTML=`
+    <h2 style="color:#2d3748;margin-bottom:1rem;">User Information</h2>
+    <p style="color:#4a5568;margin-bottom:1.25rem;line-height:1.45;">Please provide your details before sending the email notification. These details will be included in the GISSA notification and your confirmation email.</p>
+
+    <label style="display:block;margin-bottom:.4rem;color:#4a5568;font-weight:600;">Your Name/ID:</label>
+    <input type="text" id="final-user-name" value="${lastUserName || ''}" placeholder="Enter your name or user ID..."
+      style="width:100%;padding:.6rem;border:1px solid #e2e8f0;border-radius:4px;margin-bottom:1rem;"/>
+
+    <label style="display:block;margin-bottom:.4rem;color:#4a5568;font-weight:600;">Your Organisation:</label>
+    <input type="text" id="final-user-organisation" value="${lastUserOrganisation || ''}" placeholder="Enter your organisation name..."
+      style="width:100%;padding:.6rem;border:1px solid #e2e8f0;border-radius:4px;margin-bottom:1rem;"/>
+
+    <label style="display:block;margin-bottom:.4rem;color:#4a5568;font-weight:600;">Your Email:</label>
+    <input type="email" id="final-user-email" value="${lastUserEmail || ''}" placeholder="you@org.com"
+      style="width:100%;padding:.6rem;border:1px solid #e2e8f0;border-radius:4px;margin-bottom:1rem;"/>
+
+    <label style="display:block;margin-bottom:.4rem;color:#4a5568;font-weight:600;">Comments (optional):</label>
+    <textarea id="final-user-comments" placeholder="Any additional comments about this update..."
+      style="width:100%;padding:.6rem;border:1px solid #e2e8f0;border-radius:4px;height:80px;resize:vertical;margin-bottom:1rem;"></textarea>
+
+    <div id="final-user-msg" style="margin-bottom:1rem;"></div>
+    <div style="display:flex;gap:1rem;justify-content:flex-end;">
+      <button id="final-user-back" style="padding:.75rem 1.2rem;background:#a0aec0;color:#fff;border:none;border-radius:6px;cursor:pointer;">Back</button>
+      <button id="final-user-continue" style="padding:.75rem 1.2rem;background:#48bb78;color:#fff;border:none;border-radius:6px;cursor:pointer;">Continue to Email Preview</button>
+    </div>
+  `;
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  content.querySelector('#final-user-back').onclick = function(){
+    modal.remove();
+    askForMoreChanges();
+  };
+  content.querySelector('#final-user-continue').onclick = function(){
+    const userName = document.getElementById('final-user-name').value.trim();
+    const userOrganisation = document.getElementById('final-user-organisation').value.trim();
+    const userEmail = document.getElementById('final-user-email').value.trim();
+    const userComments = document.getElementById('final-user-comments').value.trim();
+    const msg = document.getElementById('final-user-msg');
+
+    if (!userName) {
+      msg.innerHTML = '<div style="color:#c53030;">Please enter your name or user ID.</div>';
+      return;
+    }
+    if (!userOrganisation) {
+      msg.innerHTML = '<div style="color:#c53030;">Please enter your organisation.</div>';
+      return;
+    }
+    if (!isValidEmail(userEmail)) {
+      msg.innerHTML = '<div style="color:#c53030;">Please enter a valid email address.</div>';
+      return;
+    }
+
+    applyUserInfoToSessionChanges(userName, userOrganisation, userEmail, userComments);
+    modal.remove();
+    sendBatchEmailNotification();
+  };
 }
 
 function sendBatchEmailNotification(){
-  const userName = sessionChanges.find(c=>c.addedBy)?.addedBy || 'System User';
+  const userName = lastUserName || sessionChanges.find(c=>c.addedBy)?.addedBy || 'System User';
   sendEmailNotification(null, userName, sessionChanges);
 }
 
@@ -882,6 +1171,8 @@ ${newTerms}
 * **New code/s this update:** ${arr.length}
 * **Last updated:** ${d.toLocaleDateString('en-AU',{year:'numeric',month:'long',day:'numeric'})}
 * **Updated by:** ${userName}
+* **Organisation:** ${lastUserOrganisation || 'Not provided'}
+* **Requester email:** ${lastUserEmail || 'Not provided'}
 
 **What's Next?**
 Please review these changes and update any documentation or processes that reference these codes.
@@ -893,8 +1184,11 @@ Please Note: This is an automated notification from the A-SPEC Codelists Dashboa
 
   const filename = `A-SPEC_CODELISTS_v2.0.6_${iso}.xlsx`;
   showEmailPreview(subject, body, updatedExcelBlob, filename, arr, {
-    userName, userEmail: lastUserEmail, wantConfirm: lastUserWantsConfirm
-  });
+  userName,
+  userEmail: lastUserEmail,
+  userOrganisation: lastUserOrganisation,
+  wantConfirm: lastUserWantsConfirm
+});
 }
 
 function getTotalTermsCount(){
@@ -906,9 +1200,9 @@ function generateUpdatedExcelFile(){
   try{
     const wb = XLSX.utils.book_new();
     const columns = [
-      "Spec","Spec_Coverage","Codelist_Name","Code_Value","Description","Comment",
-      "Date_Modified","Added - A, Modified - M, Removed - R","Change_Author","Category"
-    ];
+    "Spec","Spec_Coverage","Codelist_Name","Code_Value","Description","Comment",
+    "Date_Modified","Added - A, Modified - M, Removed - R","Change_Author","Organisation","Category"
+  ];
     const masterData=[];
     codelists.forEach(c=>{
       c.codes.forEach(code=>{
@@ -923,6 +1217,7 @@ function generateUpdatedExcelFile(){
           "Date_Modified": dateOut,
           "Added - A, Modified - M, Removed - R": pick(code, 'Added - A, Modified - M, Removed - R','ChangeFlag') || 'A',
           "Change_Author": pick(code,'Change_Author','CHANGE_AUTHOR','Added_By','ADDED_BY'),
+          "Organisation": pick(code,'Organisation','ORGANISATION','Organization','ORGANIZATION'),
           "Category": pick(code,'Category')
         });
       });
@@ -936,7 +1231,7 @@ function generateUpdatedExcelFile(){
 
 /* -------------------- Email preview & send -------------------- */
 function showEmailPreview(subject, body, excelBlob, filename, changes, opts = {}){
-  const { userName = 'User', userEmail = '', wantConfirm = false } = opts;
+  const { userName = 'User', userEmail = '', userOrganisation = '', wantConfirm = false } = opts;
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:flex;justify-content:center;align-items:center;';
   const content=document.createElement('div');
@@ -952,19 +1247,17 @@ function showEmailPreview(subject, body, excelBlob, filename, changes, opts = {}
     <div style="margin-bottom:1.5rem;padding:1rem;background:#ebf8ff;border-radius:8px;color:#000;">
       <h4 style="margin-bottom:.5rem;">📊 Session Summary:</h4>
       <p><strong>Total changes:</strong> ${changes?changes.length:1}</p>
+      <p><strong>Submitted by:</strong> ${userName}</p>
+      <p><strong>Organisation:</strong> ${userOrganisation || 'Not provided'}</p>
+      <p><strong>Requester email:</strong> ${userEmail || 'Not provided'}</p>
       <p><strong>File version:</strong> ${filename}</p>
       <p><strong>Codelists affected:</strong> ${changes ? [...new Set(changes.map(c=>c.codelist))].join(', ') : (selectedCodelist?selectedCodelist.name:'')}</p>
     </div>
     <div style="display:flex;gap:1rem;justify-content:center;">
-      <button id="download-excel" style="padding:.75rem 1.5rem;background:#48bb78;color:#fff;border:none;border-radius:6px;cursor:pointer;">📁 Download ${filename}</button>
       <button id="simulate-send" style="padding:.75rem 1.5rem;background:#667eea;color:#fff;border:none;border-radius:6px;cursor:pointer;">📤 Send Email</button>
       <button id="close-reset" style="padding:.75rem 1.5rem;background:#a0aec0;color:#fff;border:none;border-radius:6px;cursor:pointer;">Close & Reset Session</button>
     </div>`;
   modal.className='modal'; modal.appendChild(content); document.body.appendChild(modal);
-
-  content.querySelector('#download-excel').addEventListener('click',()=>{
-    if (excelBlob){ const url=URL.createObjectURL(excelBlob); const a=document.createElement('a'); a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url); }
-  });
 
   content.querySelector('#close-reset').addEventListener('click',()=>{
     modal.remove(); resetSession(true);
@@ -986,6 +1279,9 @@ sendBtn.addEventListener('click', async () => {
 `Hi ${userName},
 
 You are receiving this email as confirmation that your submission has been received by the A-SPEC team and includes the following change/s.
+
+Submitted by: ${userName}
+Organisation: ${userOrganisation || 'Not provided'}
 
 Quick summary (${changes ? changes.length : 1} change${(changes && changes.length!==1) ? 's' : ''}):
 ${(changes || []).map(c=>`• ${c.code} — ${c.description} (${c.codelist})`).join('\n')}
@@ -1043,7 +1339,7 @@ function resetSession(deep=false){
 
   const ids = ['codelist-section','creation-section','codelist-search','code-search',
                'new-code-description','manual-code-name','manual-code-description',
-               'user-name','user-comments'];
+               'user-name', 'user-organisation','user-comments'];
   ids.forEach(id => { const el=document.getElementById(id); if(!el) return;
     if (el.tagName==='DIV' || el.tagName==='SECTION') { if (id.endsWith('-section')) el.style.display='none'; }
     else { el.value=''; }
@@ -1065,61 +1361,110 @@ function resetSession(deep=false){
 /* -------------------- Search across all codelists -------------------- */
 
 function handleCodeSearch(e){
-  const q=e.target.value.toLowerCase().trim();
-  const results=document.getElementById('search-results');
-  if (q.length<2){ results.innerHTML=''; return; }
+  const raw = e.target.value.trim();
+  const q = raw.toUpperCase();
+  const results = document.getElementById('search-results');
+  if (raw.length < 2){ results.innerHTML = ''; return; }
 
-  let matches=[];
-  codelists.forEach(cl=>{
-    cl.codes.forEach(code=>{
-      const fields=[
-        pick(code,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE'),
-        pick(code,'Description','DESCRIPTION'),
-        pick(code,'Comment','COMMENT','comment')
-      ].join(' ').toLowerCase();
-      if (fields.includes(q)){
-        matches.push({
-          codelistName:cl.name,
-          code:pick(code,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE') || 'N/A',
-          description:pick(code,'Description','DESCRIPTION') || 'No description',
-          comment:pick(code,'Comment','COMMENT','comment') || '',
-          spec:pick(code,'Spec','SPEC')
+  // Helper: build a result card with a showCopyPicker button
+  function buildCard(item, borderColor, pickerId) {
+    const ec = item.code.replace(/'/g,"\\'");
+    const ed = item.description.replace(/'/g,"\\'");
+    const es = (item.spec||'').replace(/'/g,"\\'");
+    const ef = item.codelistName.replace(/'/g,"\\'");
+
+    const alreadyInTarget = selectedCodelist.codes.some(ec2 =>
+      pick(ec2,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === item.code.toUpperCase()
+    );
+
+    const actionHtml = `<div style="margin-top:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+           <span style="font-size:.85rem;color:#4a5568;">From: <b>${item.codelistName}</b></span>
+           ${alreadyInTarget ? `<span style="font-size:.85rem;color:#22543d;background:#f0fff4;padding:.25rem .5rem;border-radius:4px;">Already in current codelist</span>` : ''}
+           <button onclick="showCopyPicker('${pickerId}','${ec}','${ed}','${es}','${ef}')"
+             style="padding:.3rem .85rem;background:#667eea;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.85rem;">
+             📋 Copy to Codelist
+           </button>
+         </div>`;
+
+    return `
+      <div style="background:#fff;border:1px solid ${borderColor};border-radius:6px;padding:1rem;margin-bottom:.5rem;">
+        <div style="font-weight:600;color:#2d3748;font-family:monospace;font-size:1.05rem;">${item.code}</div>
+        <div style="color:#718096;margin:.25rem 0;">${item.description}</div>
+        ${item.comment ? `<div style="font-size:.9rem;color:#a0aec0;">${item.comment}</div>` : ''}
+        ${actionHtml}
+        <div id="${pickerId}" style="display:none;"></div>
+      </div>`;
+  }
+
+  // ── Step 1: exact code match (100% match on Code_Value) ──
+  const exactMatches = [];
+  codelists.forEach(cl => {
+    cl.codes.forEach(code => {
+      const codeVal = pick(code,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE');
+      if ((codeVal || '').toUpperCase() === q) {
+        exactMatches.push({
+          codelistName: cl.name,
+          code: codeVal,
+          description: pick(code,'Description','DESCRIPTION') || 'No description',
+          comment: pick(code,'Comment','COMMENT','comment') || '',
+          spec: pick(code,'Spec','SPEC') || ''
         });
       }
     });
   });
-  matches = matches.slice(0,20);
 
-  if (matches.length>0){
-    results.innerHTML = `
-      <h4 style="color:#2d3748;margin-bottom:1rem;">Found ${matches.length} matching codes OR description (across all codelists):</h4>
-      <div style="max-height:400px;overflow-y:auto;">
-        ${matches.map(item=>{
-          const inSelected=item.codelistName===selectedCodelist.name;
-          const color=inSelected?'#22c55e':'#ef4444';
-          const actionText = !inSelected
-            ? `<div style="margin-top:.5rem;font-size:.9rem;color:#c05621;">This code already exists in the master codelist and cannot be re-used.</div>`
-            : '';
-          return `
-            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:1rem;margin-bottom:.5rem;">
-              <div style="font-weight:600;color:#2d3748;">${item.code}</div>
-              <div style="color:#718096;margin:.25rem 0;">${item.description}</div>
-              <div style="color:${color};font-size:.95rem;">In: <b>${item.codelistName}</b></div>
-              ${item.comment ? `<div style="font-size:.9rem;color:#a0aec0;">${item.comment}</div>` : ''}
-              ${actionText}
-            </div>`;
-        }).join('')}
-      </div>`;
-  }else{
+  if (exactMatches.length > 0) {
     results.innerHTML = `
       <div style="background:#fef5e7;border:1px solid #f6ad55;border-radius:6px;padding:1rem;margin-bottom:1rem;">
-        <h4 style="color:#c05621;margin-bottom:.5rem;">No existing codes found for "${e.target.value.trim()}" in any codelist</h4>
-        <p style="color:#9c4221;">Use <b>Create New Code</b> below, or create directly from your search:</p>
-        <button onclick="createNewWithSearchTerm('${e.target.value.trim().replace(/'/g,"\\'")}')" style="margin-top:.5rem;padding:.5rem 1rem;background:#48bb78;color:#fff;border:none;border-radius:4px;cursor:pointer;">
-          Create New Code: "${e.target.value.trim()}"
-        </button>
+        <h4 style="color:#c05621;margin-bottom:.25rem;">⚠️ Code "<b>${raw.toUpperCase()}</b>" already exists in the master codelist</h4>
+        <p style="font-size:.9rem;color:#9c4221;margin-bottom:0;">You cannot create a new code with this name. You can copy it to any codelist using the button below.</p>
+      </div>
+      <div style="max-height:360px;overflow-y:auto;">
+        ${exactMatches.map((item, i) => buildCard(item, '#fbd38d', `picker-exact-${i}`)).join('')}
       </div>`;
+    return;
   }
+
+  // ── Step 2: description partial matches ──
+  const descMatches = [];
+  const ql = raw.toLowerCase();
+  codelists.forEach(cl => {
+    cl.codes.forEach(code => {
+      const desc = pick(code,'Description','DESCRIPTION') || '';
+      const comment = pick(code,'Comment','COMMENT','comment') || '';
+      if (desc.toLowerCase().includes(ql) || comment.toLowerCase().includes(ql)) {
+        descMatches.push({
+          codelistName: cl.name,
+          code: pick(code,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE') || 'N/A',
+          description: desc || 'No description',
+          comment,
+          spec: pick(code,'Spec','SPEC') || ''
+        });
+      }
+    });
+  });
+
+  if (descMatches.length > 0) {
+    const shown = descMatches.slice(0, 20);
+    results.innerHTML = `
+      <h4 style="color:#2d3748;margin-bottom:.5rem;">No code named "<b>${raw}</b>" — but ${shown.length} description match${shown.length!==1?'es':''} found:</h4>
+      <p style="font-size:.88rem;color:#718096;margin-bottom:1rem;">Copy one of these to any codelist, or scroll down to create a brand new code.</p>
+      <div style="max-height:400px;overflow-y:auto;">
+        ${shown.map((item, i) => buildCard(item, '#e2e8f0', `picker-desc-${i}`)).join('')}
+      </div>`;
+    return;
+  }
+
+  // ── Step 3: nothing found ──
+  const escaped = raw.replace(/'/g,"\\'");
+  results.innerHTML = `
+    <div style="background:#fef5e7;border:1px solid #f6ad55;border-radius:6px;padding:1rem;margin-bottom:1rem;">
+      <h4 style="color:#c05621;margin-bottom:.5rem;">No existing codes or descriptions found for "${raw}"</h4>
+      <p style="color:#9c4221;">This looks like a brand new code. Use <b>Create New Code</b> below, or create it directly:</p>
+      <button onclick="createNewWithSearchTerm('${escaped}')" style="margin-top:.5rem;padding:.5rem 1rem;background:#48bb78;color:#fff;border:none;border-radius:4px;cursor:pointer;">
+        ➕ Create New Code: "${raw}"
+      </button>
+    </div>`;
 }
 
 
@@ -1131,8 +1476,13 @@ function createNewWithSearchTerm(term){
 
 
 window.addSearchedCodeToCodelist = function(code, desc, fromName, spec) {
-  if (codeExistsAnywhere(code)) {
-    alert(`Code "${code}" already exists in the master codelist and cannot be added again.`);
+  // This is now just an alias kept for backward compat - real logic is in confirmCopyToCodelist
+  // Only block if already in the currently selected codelist
+  const alreadyInTarget = selectedCodelist.codes.some(ec =>
+    pick(ec,'Code_Value','CODE_Value','CODE_VALUE','Code','CODE').toUpperCase() === code.toUpperCase()
+  );
+  if (alreadyInTarget) {
+    alert(`Code "${code}" already exists in "${selectedCodelist.name}". No need to copy it again.`);
     return;
   }
 
