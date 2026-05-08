@@ -697,7 +697,7 @@ function showManualCodeCreation(){
 
 /* -------------------- Create/Validate -------------------- */
 function validateAndCreateManualCode(){
-  const codeName = document.getElementById('manual-code-name').value.trim();
+  const codeName = document.getElementById('manual-code-name').value.trim().toUpperCase().replace(/\s/g, '');
   const description = document.getElementById('manual-code-description').value.trim();
   const msgDiv = document.getElementById('manual-validation-message');
 
@@ -751,42 +751,6 @@ function generateCodeSuggestions(){
     `).join('')}
     </div>
   `;
-}
-
-function sanitizeCode(code){
-  return (code || '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '')
-    .substring(0, 10);
-}
-
-function generateRandomSuffix(length = 4){
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let out = '';
-  for (let i = 0; i < length; i++){
-    out += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return out;
-}
-
-function makeUniqueCode(baseCode, fallbackPrefix = 'CD'){
-  let cleanBase = sanitizeCode(baseCode);
-
-  if (cleanBase && !codeExists(cleanBase)) {
-    return cleanBase;
-  }
-
-  const prefix = sanitizeCode(fallbackPrefix).substring(0, 6) || 'CD';
-
-  for (let i = 0; i < 200; i++){
-    const randomCode = sanitizeCode((prefix + generateRandomSuffix(4)).substring(0, 10));
-    if (randomCode && !codeExists(randomCode)) {
-      return randomCode;
-    }
-  }
-
-  const ts = Date.now().toString().slice(-6);
-  return sanitizeCode((prefix + ts).substring(0, 10));
 }
 
 
