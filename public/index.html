@@ -99,7 +99,7 @@
       </div>
       <div style="margin-bottom:1.2rem;">
         <strong>File:</strong>
-        <span id="master-file-name" style="color:#667eea;">A-SPEC CODELISTS Version 2.0.8 MASTER WIP - 20260508.xlsx</span>
+        <span id="master-file-name" style="color:#667eea;">A-SPEC CODELISTS Version 2.0.9 MASTER WIP - 20260508.xlsx</span>
       </div>
       <p style="font-size:.9rem;color:#718096;margin-top:-.4rem;">
         Source file can also be downloaded from the
@@ -153,8 +153,8 @@ const EMAIL_TO   = "info@gissa.com.au";
 const EMAIL_FROM = "info@gissa.com.au"; // must be a verified sender
 
 // Hardcoded master file name in the same folder:
-const MASTER_FILE_URL  = "A-SPEC CODELISTS Version 2.0.8 MASTER WIP - 20260508.xlsx";
-const MASTER_FILE_NAME = "A-SPEC CODELISTS Version 2.0.8 MASTER WIP - 20260508.xlsx";
+const MASTER_FILE_URL  = "A-SPEC CODELISTS Version 2.0.9 MASTER WIP - 20260508.xlsx";
+const MASTER_FILE_NAME = "A-SPEC CODELISTS Version 2.0.9 MASTER WIP - 20260508.xlsx.xlsx";
 
 /* -------------------- Utils -------------------- */
 function isValidEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s); }
@@ -1022,6 +1022,75 @@ function showCodeAddedSuccess(newCodeEntry){
 }
 
 /* -------------------- Finish / email flow -------------------- */
+
+function editSessionChange(idx) {
+  const ch = sessionChanges[idx];
+  const editDiv = document.getElementById(`modal-edit-${idx}`);
+  if (!editDiv) return;
+
+  // Toggle off if already open
+  if (editDiv.style.display === 'block') {
+    editDiv.style.display = 'none';
+    return;
+  }
+
+  editDiv.style.display = 'block';
+  editDiv.innerHTML = `
+    <div style="background:#f0f4ff;border:1px solid #c3d0f5;border-radius:6px;padding:.75rem;">
+      <div style="margin-bottom:.5rem;">
+        <label style="font-size:.82rem;color:#4a5568;font-weight:600;display:block;margin-bottom:.25rem;">Code (max 10 chars, no spaces):</label>
+        <input id="edit-code-${idx}" type="text" maxlength="10" value="${ch.code}"
+          style="width:100%;padding:.4rem .5rem;border:1px solid #c3d0f5;border-radius:4px;text-transform:uppercase;font-family:monospace;"
+          oninput="this.value=this.value.replace(/\\s/g,'').toUpperCase()"/>
+      </div>
+      <div style="margin-bottom:.6rem;">
+        <label style="font-size:.82rem;color:#4a5568;font-weight:600;display:block;margin-bottom:.25rem;">Description:</label>
+        <input id="edit-desc-${idx}" type="text" value="${ch.description.replace(/"/g,'&quot;')}"
+          style="width:100%;padding:.4rem .5rem;border:1px solid #c3d0f5;border-radius:4px;"/>
+      </div>
+      <div style="display:flex;gap:.5rem;">
+        <button onclick="saveSessionChange(${idx})" style="padding:.35rem .8rem;background:#48bb78;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.85rem;">✅ Save</button>
+        <button onclick="document.getElementById('modal-edit-${idx}').style.display='none'" style="padding:.35rem .8rem;background:#a0aec0;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.85rem;">Cancel</button>
+      </div>
+      <div id="edit-msg-${idx}" style="margin-top:.4rem;font-size:.82rem;"></div>
+    </div>`;
+}
+
+function saveSessionChange(idx) {
+  const ch = sessionChanges[idx];
+  const newCode = (document.getElementById(`edit-code-${idx}`).value || '').trim().toUpperCase();
+  const newDesc = (document.getElementById(`edit-desc-${idx}`).value || '').trim();
+  const msg = document.getElementById(`edit-msg-${idx}`);
+
+  if (!newCode) { msg.innerHTML = '<span style="color:#c53030;">Code cannot be empty.</span>'; return; }
+  if (newCode.length > 10) { msg.innerHTML = '<span style="color:#c53030;">Max 10 characters.</span>'; return; }
+  if (!newDesc) { msg.innerHTML = '<span style="color:#c53030;">Description cannot be empty.</span>'; return; }
+
+  // Check uniqueness only if code actually changed
+  if (newCode !== ch.code && codeExistsAnywhere(newCode)) {
+    msg.innerHTML = '<span style="color:#c53030;">That code already exists in the master codelist.</span>';
+    return;
+  }
+
+  // Update session change
+  ch.code = newCode;
+  ch.description = newDesc;
+
+  // Update the underlying codelist entry too
+  if (ch.entryRef) {
+    ch.entryRef.Code_Value = newCode;
+    ch.entryRef.Description = newDesc;
+  }
+
+  // Update the displayed text in the modal
+  const codeEl = document.getElementById(`modal-code-${idx}`);
+  const descEl = document.getElementById(`modal-desc-${idx}`);
+  if (codeEl) codeEl.textContent = newCode;
+  if (descEl) descEl.textContent = newDesc;
+
+  document.getElementById(`modal-edit-${idx}`).style.display = 'none';
+}
+
 function askForMoreChanges(){
   const modal=document.createElement('div');
   modal.style.cssText='position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:10000;display:flex;justify-content:center;align-items:center;';
@@ -1033,11 +1102,17 @@ function askForMoreChanges(){
       <h4 style="color:#2d3748;margin-bottom:.75rem;">Changes Made This Session:</h4>
       ${sessionChanges.length===0
         ? `<div style="color:#a0aec0;">No changes made yet.</div>`
-        : sessionChanges.map(ch=>`
+        : sessionChanges.map((ch, idx)=>`
           <div style="margin-bottom:.6rem;padding:.5rem .8rem;background:#fff;border-radius:5px;border-left:4px solid #48bb78;">
-            <div style="font-weight:600;color:#18a058;">${ch.code}</div>
-            <div style="color:#4b5563;">${ch.description || '<i>No description</i>'}</div>
-            <div style="font-size:.92em;color:#64748b;">Added to: <b>${ch.codelist}</b></div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;">
+              <div>
+                <div style="font-weight:600;color:#18a058;" id="modal-code-${idx}">${ch.code}</div>
+                <div style="color:#4b5563;" id="modal-desc-${idx}">${ch.description || '<i>No description</i>'}</div>
+                <div style="font-size:.92em;color:#64748b;">Added to: <b>${ch.codelist}</b></div>
+              </div>
+              <button onclick="editSessionChange(${idx})" style="padding:.25rem .6rem;background:#667eea;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.8rem;white-space:nowrap;flex-shrink:0;">✏️ Edit</button>
+            </div>
+            <div id="modal-edit-${idx}" style="display:none;margin-top:.6rem;"></div>
           </div>`).join('')}
     </div>
     <p style="color:#4a5568;margin-bottom:2rem;">Do you want to make more changes before sending the email notification?</p>
@@ -1182,7 +1257,7 @@ If required communicate with the proposer of the new code to address any issues.
 ---
 Please Note: This is an automated notification from the A-SPEC Codelists Dashboard.`;
 
-  const filename = `A-SPEC CODELISTS Version 2.0.9 MASTER WIP - ${iso}.xlsx`;
+  const filename = `A-SPEC CODELISTS Version 2.0.10 MASTER WIP - ${iso}.xlsx`;
   showEmailPreview(subject, body, updatedExcelBlob, filename, arr, {
   userName,
   userEmail: lastUserEmail,
