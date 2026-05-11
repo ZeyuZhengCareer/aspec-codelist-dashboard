@@ -2,8 +2,6 @@ require("dotenv").config();
 const express = require("express");
 const serverless = require("serverless-http");
 const sgMail = require("@sendgrid/mail");
-const fs = require("fs");
-const path = require("path");
 
 const DEFAULT_FROM = process.env.EMAIL_DEFAULT_FROM || "noreply@example.com";
 const SENDGRID_KEY = process.env.SENDGRID_API_KEY;
@@ -28,62 +26,6 @@ app.use((req, res, next) => {
 
 // Health check
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
-
-/**
- * GET /api/master-codelist
- * Scans the public/ folder for A-SPEC*.xlsx files and returns the latest one.
- * "Latest" is determined by the date embedded in the filename (YYYYMMDD pattern),
- * falling back to file modification time if no date is found.
- *
- * Response: { ok: true, filename: "A-SPEC CODELISTS Version 2.0.9 MASTER WIP - 20260508.xlsx" }
- */
-app.get("/api/master-codelist", (_req, res) => {
-  try {
-    // Resolve public/ relative to this file's location
-    // Works both locally (netlify/functions/server.js) and in Netlify Functions
-    const candidates = [
-      path.resolve(__dirname, "../../public"),   // netlify/functions/ → public/
-      path.resolve(__dirname, "../public"),       // one level up
-      path.resolve(__dirname, "public"),          // same level
-      path.resolve(process.cwd(), "public"),      // cwd/public (local dev)
-    ];
-
-    let publicDir = null;
-    for (const dir of candidates) {
-      if (fs.existsSync(dir)) { publicDir = dir; break; }
-    }
-
-    if (!publicDir) {
-      return res.status(404).json({ ok: false, error: "public/ directory not found" });
-    }
-
-    const files = fs.readdirSync(publicDir).filter(f =>
-      f.toLowerCase().startsWith("a-spec") && f.toLowerCase().endsWith(".xlsx")
-    );
-
-    if (files.length === 0) {
-      return res.status(404).json({ ok: false, error: "No A-SPEC xlsx files found in public/" });
-    }
-
-    // Extract YYYYMMDD from filename for sorting; fall back to mtime
-    const datePattern = /(\d{8})/;
-    const scored = files.map(f => {
-      const match = f.match(datePattern);
-      const score = match
-        ? parseInt(match[1], 10)
-        : fs.statSync(path.join(publicDir, f)).mtimeMs;
-      return { f, score };
-    });
-
-    scored.sort((a, b) => b.score - a.score);
-    const latest = scored[0].f;
-
-    return res.status(200).json({ ok: true, filename: latest });
-  } catch (err) {
-    console.error("master-codelist scan error:", err);
-    return res.status(500).json({ ok: false, error: err.message });
-  }
-});
 
 /**
  * POST /api/send-codelist-email
@@ -114,9 +56,9 @@ app.post("/api/send-codelist-email", async (req, res) => {
     } = req.body || {};
 
     if (!to || !subject || !html) {
-      return res.status(400).json({
-        ok: false,
-        error: "Missing required fields (to, subject, html)"
+      return res.status(400).json({ 
+        ok: false, 
+        error: "Missing required fields (to, subject, html)" 
       });
     }
 

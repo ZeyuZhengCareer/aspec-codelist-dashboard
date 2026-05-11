@@ -99,7 +99,7 @@
       </div>
       <div style="margin-bottom:1.2rem;">
         <strong>File:</strong>
-        <span id="master-file-name" style="color:#667eea;">Detecting latest file…</span>
+        <span id="master-file-name" style="color:#667eea;">A-SPEC CODELISTS Version 2.0.10 MASTER WIP - 20260511.xlsx</span>
       </div>
       <p style="font-size:.9rem;color:#718096;margin-top:-.4rem;">
         Source file can also be downloaded from the
@@ -152,9 +152,9 @@ const EMAIL_BACKEND_URL = "/api/send-codelist-email";
 const EMAIL_TO   = "info@gissa.com.au";
 const EMAIL_FROM = "info@gissa.com.au"; // must be a verified sender
 
-// Resolved at runtime from /api/master-codelist — no manual edits needed when XLSX is replaced
-let MASTER_FILE_URL  = "";   // set by loadMasterFile()
-let MASTER_FILE_NAME = "";   // set by loadMasterFile()
+// Hardcoded master file name in the same folder:
+const MASTER_FILE_URL  = "A-SPEC CODELISTS Version 2.0.10 MASTER WIP - 20260511.xlsx";
+const MASTER_FILE_NAME = "A-SPEC CODELISTS Version 2.0.10 MASTER WIP - 20260511.xlsx";
 
 /* -------------------- Utils -------------------- */
 function isValidEmail(s){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s); }
@@ -1221,18 +1221,7 @@ If required communicate with the proposer of the new code to address any issues.
 ---
 Please Note: This is an automated notification from the A-SPEC Codelists Dashboard.`;
 
-  // Auto-derive next version filename from the loaded master file name.
-  // e.g. "...Version 2.0.9 MASTER WIP - 20260508.xlsx" → "...Version 2.0.10 MASTER WIP - 20260511.xlsx"
-  let filename = `A-SPEC CODELISTS Updated - ${iso}.xlsx`; // safe fallback
-  if (MASTER_FILE_NAME) {
-    const verMatch = MASTER_FILE_NAME.match(/Version\s+([\d]+)\.([\d]+)\.([\d]+)/i);
-    const prefix   = MASTER_FILE_NAME.replace(/\s*-\s*\d{8}\.xlsx$/i, '').replace(/Version\s+[\d.]+\s*/i, '').trim();
-    if (verMatch) {
-      const [, maj, min, patch] = verMatch.map(Number);
-      const nextPatch = patch + 1;
-      filename = `A-SPEC CODELISTS Version ${maj}.${min}.${nextPatch} MASTER WIP - ${iso}.xlsx`;
-    }
-  }
+  const filename = `A-SPEC CODELISTS Version 2.0.11 MASTER WIP - ${iso}.xlsx`;
   showEmailPreview(subject, body, updatedExcelBlob, filename, arr, {
   userName,
   userEmail: lastUserEmail,
@@ -1571,43 +1560,8 @@ window.addSearchedCodeToCodelist = function(code, desc, fromName, spec) {
 /* -------------------- Load file & boot -------------------- */
 async function loadMasterFile(){
   try{
-    // ── Step 1: ask the server which XLSX file is current ──────────────────
-    let detectedFilename = null;
-    try {
-      const metaResp = await fetch("/api/master-codelist", { cache: "no-cache" });
-      if (metaResp.ok) {
-        const meta = await metaResp.json();
-        if (meta.ok && meta.filename) detectedFilename = meta.filename;
-      }
-    } catch (_) { /* server unreachable — will fall back below */ }
-
-    // ── Step 2: fall back to scanning well-known name patterns ─────────────
-    if (!detectedFilename) {
-      // Try a handful of plausible names so the page still works offline /
-      // in local dev without the API running.
-      const fallbacks = [
-        "A-SPEC CODELISTS Version 2.0.9 MASTER WIP - 20260508.xlsx",
-        "A-SPEC CODELISTS Version 2.0.8 MASTER WIP - 20260101.xlsx",
-      ];
-      for (const name of fallbacks) {
-        const probe = await fetch(name, { method: "HEAD", cache: "no-cache" }).catch(()=>null);
-        if (probe && probe.ok) { detectedFilename = name; break; }
-      }
-    }
-
-    if (!detectedFilename) throw new Error("Could not locate an A-SPEC XLSX file.");
-
-    // ── Step 3: expose globally so email code can reference them ───────────
-    MASTER_FILE_URL  = detectedFilename;
-    MASTER_FILE_NAME = detectedFilename;   // download uses same name
-
-    // Update the UI label
-    const label = document.getElementById('master-file-name');
-    if (label) label.textContent = detectedFilename;
-
-    // ── Step 4: load & parse ───────────────────────────────────────────────
     const resp = await fetch(MASTER_FILE_URL, { cache: "no-cache" });
-    if (!resp.ok) throw new Error("Failed to load master file: " + MASTER_FILE_URL);
+    if (!resp.ok) throw new Error("Failed to load master file!");
     const buffer = await resp.arrayBuffer();
 
     const workbook = XLSX.read(buffer, { type:'array' });
@@ -1618,7 +1572,7 @@ async function loadMasterFile(){
     processCodelistData(jsonData);
     updateStep(1,'completed'); updateStep(2,'active'); showCodelistSelection();
   }catch(err){
-    alert('Error loading master codelist: ' + err.message + '\nTip: put the XLSX in the public/ folder and redeploy.');
+    alert('Error loading master codelist: ' + err.message + '\nTip: put the XLSX in the same folder as this HTML and check the exact file name.');
     console.error(err);
   }
 }
